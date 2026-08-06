@@ -7,70 +7,89 @@
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
 <style>
-:root{--bg:#0e0f12;--fg:#e8e8e8;--sub:#9aa0a8;--line:#2a2d33;--panel:#16181dee;
-  --panelbd:#333;--pop:#1c1f25;--popfg:#eee;--acc:#ffd54f;--track:#fff;--trackop:0.30;
-  --dim:#23262c;--dimbd:#444;--ring:#fff;--shadow:0 1px 3px #000}
+:root{--bg:#0e0f12;--fg:#e8e8e8;--sub:#9aa0a8;--line:#2a2d33;--panel:#16181df2;
+  --panelbd:#333;--pop:#1c1f25;--popfg:#eee;--popdim:#9aa0a8;--acc:#ffd54f;
+  --track:#fff;--trackop:0.30;--dim:#5b626c;--dimbd:#3a3f47;--ring:#fff;
+  --shadow:0 1px 3px #000;--btn:#22252c}
 html[data-theme=light]{--bg:#f7f7f9;--fg:#1b1e23;--sub:#5a626c;--line:#d9dde3;
-  --panel:#ffffffee;--panelbd:#c9ced6;--pop:#fff;--popfg:#1b1e23;--acc:#a37f00;
-  --track:#6b7480;--trackop:0.55;--dim:#e4e7ec;--dimbd:#b6bcc5;--ring:#1b1e23;
-  --shadow:0 1px 3px #0003}
+  --panel:#fffffff2;--panelbd:#c9ced6;--pop:#fff;--popfg:#1b1e23;--popdim:#6b7280;
+  --acc:#a37f00;--track:#6b7480;--trackop:0.55;--dim:#aab1ba;--dimbd:#868d96;
+  --ring:#1b1e23;--shadow:0 1px 3px #0003;--btn:#eef0f3}
 html,body{margin:0;height:100%;background:var(--bg);color:var(--fg);
   font-family:'Noto Sans CJK SC','Hiragino Sans','Yu Gothic',sans-serif}
-#hdr{padding:9px 13px 7px;background:var(--bg);border-bottom:1px solid var(--line)}
-#hdr h1{font-size:16px;margin:0;font-weight:700}
-#hdr .sub{font-size:11px;color:var(--sub);margin-top:3px;line-height:1.45}
-#map{position:absolute;top:70px;bottom:0;left:0;right:0;background:var(--bg)}
+#hdr{padding:8px 12px 6px;background:var(--bg);border-bottom:1px solid var(--line);
+  position:relative}
+#hdr h1{font-size:15px;margin:0;font-weight:700;padding-right:88px}
+#hdr .sub{font-size:11px;color:var(--sub);margin-top:2px;line-height:1.4;padding-right:88px}
+#map{position:absolute;top:64px;bottom:0;left:0;right:0;background:var(--bg)}
 .leaflet-container{background:var(--bg)}
 .hubstar{font-size:20px;line-height:20px;text-shadow:0 0 4px #000,0 0 8px #000}
-.hublbl{font-size:12px;font-weight:700;color:var(--fg);text-shadow:var(--shadow);white-space:nowrap}
+.hublbl{font-size:12px;font-weight:700;color:var(--fg);text-shadow:var(--shadow);
+  white-space:nowrap}
 .leaflet-popup-content-wrapper,.leaflet-popup-tip{background:var(--pop);color:var(--popfg)}
-.leaflet-popup-content{margin:9px 11px;font-size:13px;line-height:1.55}
-.ctl{position:absolute;left:10px;top:80px;z-index:900;background:var(--panel);border:1px solid var(--panelbd);
-  border-radius:9px;padding:10px 12px;width:224px;max-height:calc(100% - 100px);
-  overflow:auto;-webkit-overflow-scrolling:touch;font-size:12px}
-.ctl h2{font-size:12px;margin:0 0 6px;color:var(--fg);font-weight:700}
-.ctl .val{float:right;color:var(--acc);font-weight:700}
-input[type=range]{width:100%;margin:2px 0 8px;accent-color:var(--acc)}
+.leaflet-popup-content{margin:9px 11px;font-size:13px;line-height:1.5}
+button{font-family:inherit;cursor:pointer;background:var(--btn);color:var(--fg);
+  border:1px solid var(--panelbd);border-radius:7px}
+#theme{position:absolute;right:10px;top:10px;padding:5px 9px;font-size:12px}
+
+/* 使用頻度の高い操作だけ常時表示の細いバーに置き、説明の壁は折りたたむ */
+#bar{position:absolute;left:8px;top:72px;z-index:900;background:var(--panel);
+  border:1px solid var(--panelbd);border-radius:10px;padding:8px 10px;width:206px;
+  box-shadow:0 2px 10px #0003}
+#bar .top{display:flex;align-items:center;justify-content:space-between;font-size:12px;
+  font-weight:700}
+#bar .val{color:var(--acc)}
+input[type=range]{width:100%;margin:3px 0 5px;accent-color:var(--acc)}
+.tg{display:flex;align-items:center;gap:6px;font-size:12px;cursor:pointer;padding:2px 0}
+#stat{color:var(--sub);font-size:10.5px;margin-top:4px;line-height:1.45}
+#more{width:100%;margin-top:7px;padding:4px 0;font-size:11.5px}
+#info{position:absolute;left:8px;top:72px;z-index:901;background:var(--panel);
+  border:1px solid var(--panelbd);border-radius:10px;padding:10px 12px;width:238px;
+  max-height:calc(100% - 92px);overflow:auto;-webkit-overflow-scrolling:touch;
+  font-size:12px;box-shadow:0 2px 12px #0005}
+#info[hidden]{display:none}
+#info h2{font-size:12px;margin:0 0 6px;font-weight:700}
+#info .close{position:absolute;right:8px;top:8px;padding:2px 7px;font-size:12px}
 .row{display:flex;align-items:center;gap:7px;padding:2.5px 0}
-.sw{width:11px;height:11px;border-radius:50%;flex:0 0 auto;border:1px solid #0008}
+.sw{width:11px;height:11px;border-radius:50%;flex:0 0 auto;border:1px solid #0006;
+  box-sizing:border-box}
+.note{color:var(--sub);font-size:10.5px;line-height:1.5;margin-top:9px;
+  border-top:1px solid var(--line);padding-top:8px}
 .warn{color:#c0392b}
 html[data-theme=dark] .warn{color:#ff8a80}
-.note{color:var(--sub);font-size:10.5px;line-height:1.5;margin-top:8px;
-  border-top:1px solid var(--line);padding-top:7px}
-.tg{display:flex;align-items:center;gap:7px;cursor:pointer;padding:4px 0;
-  border-top:1px solid var(--line);margin-top:6px}
-#stat{color:var(--sub);font-size:10.5px;margin-top:5px}
-#theme{position:absolute;right:12px;top:12px;z-index:1000;background:var(--panel);
-  color:var(--fg);border:1px solid var(--panelbd);border-radius:7px;padding:5px 10px;
-  font-size:12px;cursor:pointer;font-family:inherit}
-@media (max-width:620px){.ctl{width:172px;padding:8px 9px;font-size:11px;top:76px}
-  #hdr h1{font-size:14px}#map{top:66px}}
+@media (max-width:620px){
+  #bar{width:162px;padding:7px 8px;top:68px;left:6px}
+  #info{width:min(78vw,262px);top:68px;left:6px}
+  #hdr h1{font-size:14px}#map{top:60px}
+}
 </style>
 </head>
 <body>
 <div id="hdr">
-  <h1>大阪府 车站可达性图 <span style="color:#9aa0a8;font-size:11px">v1 · 时间层</span></h1>
-  <div class="sub">色 = 阈值内可达的枢纽集合 · ★=四枢纽 · 点站看四元组与数据来源</div>
+  <h1>大阪府 车站可达性图 <span style="color:var(--sub);font-size:11px">v1 · 时间层</span></h1>
+  <div class="sub">色 = 阈值内可达的枢纽集合 · ★=四枢纽 · 点站看四元组与来源</div>
   <button id="theme" title="切换明暗主题">🌙 暗色</button>
 </div>
 <div id="map"></div>
 
-<div class="ctl">
-  <h2>阈值 <span class="val" id="thv">25 分</span></h2>
+<div id="bar">
+  <div class="top"><span>阈值</span><span class="val" id="thv">25 分</span></div>
   <input type="range" id="th" min="15" max="40" step="1" value="25">
+  <label class="tg"><input type="checkbox" id="lowfreq">
+    <span>含低频优等 <span style="color:var(--acc)">⚡</span></span></label>
+  <div id="stat"></div>
+  <button id="more">图例与说明 ▾</button>
+</div>
+
+<div id="info" hidden>
+  <button class="close" id="closeInfo">✕</button>
   <h2>可达枢纽</h2>
   <div id="lg"></div>
-  <label class="tg"><input type="checkbox" id="lowfreq">
-    <span>含低频优等 <span style="color:#ffd54f">⚡</span></span></label>
-  <div id="stat"></div>
   <div class="note" id="note">载入中…</div>
 </div>
 
 <script>
 const HUBS = ['梅田','難波','天王寺','京橋'];
-// 四枢纽各一色。v0 の事業者色とは別系統（こちらは可達性の表現）
-// 天王寺に黄系を当てると「四枢纽全覆盖」の金と見分けが付かなかったので、
-// 4色は色相を最大限に離して取り、全覆盖は金＋白フチで別格にする
 // 暗色用と浅色用で別に持つ。暗色の色をそのまま白背景に置くとコントラストが
 // 2.2〜3.0:1 しか出ず読めない（WCAG の非テキスト下限は3:1）。
 // 浅色用は同じ色相のまま、白背景で3.5:1 以上になる範囲で最も明るい明度を選んである。
@@ -85,6 +104,7 @@ let HUE = PALETTE[THEME], GOLD = HUE.GOLD;
 const HUB_LL = {'梅田':[34.7025,135.4959],'難波':[34.6636,135.5008],
                 '天王寺':[34.6465,135.5140],'京橋':[34.6968,135.5340]};
 const PROV_LABEL = {measured:'实测', anchored:'锚定', borrowed:'借用估算'};
+const cssvar = n => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
 
 const map = L.map('map',{zoomControl:false}).setView([34.66,135.52],11);
 L.control.zoom({position:'bottomright'}).addTo(map);
@@ -97,17 +117,16 @@ function setTiles(){
   tiles.bringToBack();
 }
 
-// 軌道幾何（v0と同じ細い白線。線名を持たないデータなので一律）
+// 軌道幾何（v0と同じ細線。線名を持たないデータなので一律）
 const lineLayer = L.layerGroup().addTo(map);
 let redrawLines = ()=>{};
 fetch('lines_osaka.json').then(r=>r.json()).then(ls=>{
   const draw = ()=>{
     lineLayer.clearLayers();
     const w = map.getZoom()>=13?1.6:(map.getZoom()>=11?1.0:0.7);
-    const cs = getComputedStyle(document.documentElement);
-    const tc = cs.getPropertyValue('--track').trim();
-    const to = parseFloat(cs.getPropertyValue('--trackop'));
-    for(const l of ls) L.polyline(l.c,{color:tc,opacity:to,weight:w,interactive:false}).addTo(lineLayer);
+    const tc = cssvar('--track'), to = parseFloat(cssvar('--trackop'));
+    for(const l of ls) L.polyline(l.c,{color:tc,opacity:to,weight:w,interactive:false})
+      .addTo(lineLayer);
   };
   redrawLines = draw;
   draw(); let lastB=null;
@@ -127,54 +146,63 @@ function mix(set){
   if(set.length===4) return GOLD;
   let r=0,g=0,b=0;
   for(const h of set){const c=HUE[h]; r+=c[0]; g+=c[1]; b+=c[2];}
-  const n=set.length;
-  // 単純平均だと複数枢纽で濁るので、明度を枢纽数で持ち上げる
-  const k = 1 + 0.13*(n-1);
+  const n=set.length, k = 1 + 0.13*(n-1);
   return [r/n*k, g/n*k, b/n*k].map(x=>Math.min(255,Math.round(x)));
 }
 const css = c => 'rgb('+c[0]+','+c[1]+','+c[2]+')';
 
-let DATA=null, markers=[], layer=L.layerGroup().addTo(map);
+let DATA=null, layer=L.layerGroup().addTo(map);
 
 function render(){
   const th = +document.getElementById('th').value;
   const low = document.getElementById('lowfreq').checked;
   document.getElementById('thv').textContent = th+' 分';
   layer.clearLayers();
-  let reach=0, all4=0;
+  const dim = cssvar('--dim'), dimbd = cssvar('--dimbd'), acc = cssvar('--acc');
+  const ring = cssvar('--ring');
+  let reach=0, all4=0, onlyLow=0;
   for(const s of DATA.stations){
     const t = low ? s.t_low : s.t_default;
     const set = HUBS.filter((h,i)=> t[i]!==null && t[i]<=th);
     const inOsaka = s.in_v0;
     if(set.length===0){
       if(!inOsaka) continue;
-      const cs0 = getComputedStyle(document.documentElement);
-      L.circleMarker([s.lat,s.lon],{radius:2.4,
-        color:cs0.getPropertyValue('--dimbd').trim(),weight:0.8,
-        fillColor:cs0.getPropertyValue('--dim').trim(),fillOpacity:0.85})
-        .bindPopup(popup(s,t,low,th)).addTo(layer);
+      // 既定ビューでどの枢纽にも届かない駅のうち、A層の系統が一本も無い駅は
+      // 「遠い」のではなく「日中3本/h未満の線しか無い」。意味が違うので描き分ける。
+      const noService = s.t_default.every(x=>x===null);
+      const lowOk = s.t_low.some(x=>x!==null);
+      if(!low && noService && lowOk){
+        onlyLow++;
+        L.circleMarker([s.lat,s.lon],{radius:3.4,color:acc,weight:1.5,
+          fillColor:dim,fillOpacity:0.22,dashArray:'2,2'})
+          .bindPopup(popup(s,t,low,th)).addTo(layer);
+      }else{
+        L.circleMarker([s.lat,s.lon],{radius:2.4,color:dimbd,weight:0.8,
+          fillColor:dim,fillOpacity:0.85}).bindPopup(popup(s,t,low,th)).addTo(layer);
+      }
       continue;
     }
     reach++; if(set.length===4) all4++;
-    const c = mix(set);
     const full = set.length===4;
     L.circleMarker([s.lat,s.lon],{
       radius: inOsaka ? (3.4 + set.length*0.75) : (2.6 + set.length*0.5),
-      color: full ? getComputedStyle(document.documentElement)
-                      .getPropertyValue('--ring').trim()
-                  : (THEME==='light' ? '#ffffffcc' : '#000'),
+      color: full ? ring : (THEME==='light' ? '#ffffffcc' : '#000'),
       weight: full ? 1.6 : 1,
-      fillColor:css(c), fillOpacity: inOsaka?0.95:0.55
+      fillColor:css(mix(set)), fillOpacity: inOsaka?0.95:0.55
     }).bindPopup(popup(s,t,low,th)).addTo(layer);
   }
-  document.getElementById('stat').textContent =
-    `阈值内可达 ${reach} 站 · 四枢纽全覆盖 ${all4} 站`;
+  document.getElementById('stat').innerHTML =
+    `阈值内可达 <b>${reach}</b> 站 · 四枢纽全覆盖 <b>${all4}</b> 站`
+    + (onlyLow ? `<br>仅低频线可达 ${onlyLow} 站` : '');
 }
 
 function popup(s,t,low,th){
+  // 色は必ず CSS 変数から取る。以前ここで #fff を直書きしていたため、
+  // 浅色テーマでは閾値内の分数が白背景に白文字で描かれて消えていた。
+  const fg = cssvar('--popfg'), dim = cssvar('--popdim');
   let h = '<b>'+s.name+'</b>';
-  if(s.ops && s.ops.length) h += ' <span style="color:#8b929b">'+s.ops.join('/')+'</span>';
-  if(!s.in_v0) h += ' <span style="color:#8b929b">(府外缓冲)</span>';
+  if(s.ops && s.ops.length) h += ' <span style="color:'+dim+'">'+s.ops.join('/')+'</span>';
+  if(!s.in_v0) h += ' <span style="color:'+dim+'">(府外缓冲)</span>';
   h += '<table style="margin-top:5px;border-collapse:collapse">';
   let mn=null;
   HUBS.forEach((hub,i)=>{
@@ -182,42 +210,45 @@ function popup(s,t,low,th){
     if(v!==null && (mn===null || v<mn)) mn=v;
     let mark='';
     if(low && s.via[i] && (s.t_default[i]===null || s.t_low[i] < s.t_default[i]-0.01)){
-      mark = ' <span title="经由低频优等">⚡</span>'+(s.fare[i]?'<span title="需特急券">💴</span>':'')+
-             '<span style="color:#8b929b;font-size:11px"> 経由 '+s.via[i]+'</span>';
+      mark = ' <span title="经由低频优等">⚡</span>'+(s.fare[i]?'<span title="需特急券">💴</span>':'')
+           + '<span style="color:'+dim+';font-size:11px"> 経由 '+s.via[i]+'</span>';
     }
-    const prov = s.prov[i] ? PROV_LABEL[s.prov[i]] : '—';
-    h += '<tr><td style="padding:1px 8px 1px 0"><span class="sw" style="display:inline-block;background:'
-      + css(HUE[hub]) + '"></span> '+hub+'</td><td style="padding:1px 8px 1px 0;'
-      + (v!==null&&v<=th?'color:#fff;font-weight:700':'color:#8b929b') + '">'
-      + (v===null?'不可达':v.toFixed(1)+' 分') + '</td><td style="color:#8b929b;font-size:11px">'
-      + prov + mark + '</td></tr>';
+    const inTh = v!==null && v<=th;
+    h += '<tr><td style="padding:1px 8px 1px 0"><span class="sw" style="display:inline-block;'
+      + 'background:'+css(HUE[hub])+'"></span> '+hub+'</td>'
+      + '<td style="padding:1px 8px 1px 0;color:'+(inTh?fg:dim)+';'
+      + (inTh?'font-weight:700':'')+'">'
+      + (v===null?'不可达':v.toFixed(1)+' 分') + '</td>'
+      + '<td style="color:'+dim+';font-size:11px">'+(s.prov[i]?PROV_LABEL[s.prov[i]]:'—')
+      + mark + '</td></tr>';
   });
-  h += '</table>';
-  h += '<div style="margin-top:4px;color:#cfd4da">最短 '+(mn===null?'—':mn.toFixed(1)+' 分')+'</div>';
+  h += '</table><div style="margin-top:4px;color:'+fg+'">最短 '
+     + (mn===null?'—':mn.toFixed(1)+' 分')+'</div>';
+  if(s.t_default.every(x=>x===null) && s.t_low.some(x=>x!==null)){
+    h += '<div style="margin-top:5px;color:'+dim+';font-size:11px">'
+       + '日中3本/h以上の系統が無い駅。既定ビューでは不可达、⚡を入れると到達可能</div>';
+  }
   return h;
 }
 
 function buildLegend(){
   const lg=document.getElementById('lg');
   lg.innerHTML='';
-  HUBS.forEach(h=>{
-    const row=document.createElement('div'); row.className='row';
-    row.innerHTML='<span class="sw" style="background:'+css(HUE[h])+'"></span>'+h;
-    lg.appendChild(row);
-  });
-  const r2=document.createElement('div'); r2.className='row';
-  r2.innerHTML='<span class="sw" style="background:'+css(GOLD)+';border-color:#fff"></span>四枢纽全覆盖';
-  lg.appendChild(r2);
-  const r3=document.createElement('div'); r3.className='row';
-  r3.innerHTML='<span class="sw" style="background:#23262c;border-color:#444"></span>'
-    +'<span style="color:#8b929b">阈值内不可达</span>';
-  lg.appendChild(r3);
+  const add=(sw,txt,muted)=>{
+    const r=document.createElement('div'); r.className='row';
+    r.innerHTML='<span class="sw" style="'+sw+'"></span><span'
+      + (muted?' style="color:'+cssvar('--sub')+'"':'') + '>'+txt+'</span>';
+    lg.appendChild(r);
+  };
+  HUBS.forEach(h=>add('background:'+css(HUE[h]), h));
+  add('background:'+css(GOLD)+';border:2px solid '+cssvar('--ring'), '四枢纽全覆盖');
+  add('background:'+cssvar('--dim')+';border-color:'+cssvar('--dimbd'), '阈值内不可达', 1);
+  add('background:transparent;border:2px dashed '+cssvar('--acc'), '仅低频线可达 ⚡', 1);
 }
 
 fetch('reach.json').then(r=>r.json()).then(d=>{
   DATA=d;
   buildLegend();
-  // 精度の内訳を正直に出す
   const cnt={measured:0,anchored:0,borrowed:0}; let tot=0;
   for(const s of d.stations) for(const p of s.prov) if(p){cnt[p]++;tot++;}
   const pct=k=>tot? (100*cnt[k]/tot).toFixed(0) : 0;
@@ -225,18 +256,33 @@ fetch('reach.json').then(r=>r.json()).then(d=>{
     '<b>精度</b>　实测 '+pct('measured')+'% ／ 锚定 '+pct('anchored')+'% ／ 借用估算 '+pct('borrowed')+'%'
     +'<br>实测=Osaka Metro 官方PDF时刻表的逐区间时分。锚定=该线该等级有实测所要时间反解速度。'
     +'借用=同等级中位数，误差可能较大。<b>无独立真值校准，误差为自我交叉验证估计。</b>'
+    +'<br><br><b>虚线圈的含义</b>　这些站没有日中≥3本/h 的线，不是「远」而是「班次稀」。'
+    +'難波西南侧那一片就属于这类——汐見橋線 30分毎、阪堺線恵美須町側 28分毎，'
+    +'打开⚡开关即可看到它们的到达时间。'
     +'<br><br><b class="warn">优等停站型的覆盖</b>　主力 7 条线（京阪本線・南海高野線・'
-    +'近鉄南大阪/大阪/奈良線・阪急宝塚本線・阪神本線）的急行/特急停站型已从各线'
-    +'时刻表补入，沿线时间已修正（枚方市→京橋 38→18 分、堺東→難波 22→11 分）。'
-    +'仍有 41/80 条线在 OSM 中只有各停停站型，其中影响较大的是 JR宝塚線・大阪環状線快速系统，'
-    +'这些线的沿线站时间仍偏高估。'
-    +'<br><br><b>口径不对称</b>　默认视图只用日中≥3本/h的服务型，边权不含等车时间（视作随到随走）；'
-    +'低频优等图层的边额外加期望等待（发车间隔÷2）。两种口径并存是刻意设计。'
-    +'<br><br><b>💴 課金</b>　标💴的可达性附带特急券／座席指定券的金钱成本，与运赁同属另一维度，未计入时间。'
+    +'近鉄南大阪/大阪/奈良線・阪急宝塚本線・阪神本線）的急行/特急停站型已从各线时刻表补入'
+    +'（枚方市→京橋 38→18 分、堺東→難波 22→11 分）。仍有 41/80 条线在 OSM 中只有各停停站型，'
+    +'其中影响较大的是 JR宝塚線・大阪環状線快速系统，沿线站时间仍偏高估。'
+    +'<br><br><b>口径不对称</b>　默认视图只用日中≥3本/h的服务型，边权不含等车时间'
+    +'（视作随到随走）；低频优等图层的边额外加期望等待（发车间隔÷2）。两种口径并存是刻意设计。'
+    +'<br><br><b>💴 課金</b>　标💴的可达性附带特急券／座席指定券的金钱成本，未计入时间。'
     +'<br><br>枢纽按站群定义（梅田7駅等），到达群内任一站即算到达。换乘罚时：同社3分／跨社5分／'
     +'梅田10分・難波8分・天王寺7分。';
   render();
 });
+
+const info=document.getElementById('info'), more=document.getElementById('more');
+function setInfo(open){
+  info.hidden = !open;
+  more.textContent = open ? '图例与说明 ▴' : '图例与说明 ▾';
+  localStorage.setItem('info', open?'1':'0');
+}
+more.addEventListener('click',()=>setInfo(info.hidden));
+document.getElementById('closeInfo').addEventListener('click',()=>setInfo(false));
+// 窄屏では既定で畳む。広い画面では開けておく
+const saved = localStorage.getItem('info');
+setInfo(saved===null ? window.innerWidth>=900 : saved==='1');
+
 function applyTheme(){
   document.documentElement.setAttribute('data-theme', THEME);
   HUE = PALETTE[THEME]; GOLD = HUE.GOLD;
