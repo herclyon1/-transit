@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=5">
+<title>大阪車站線路疊加圖 v0</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+<style>
+  html,body{margin:0;height:100%;background:#111;color:#eee;
+    font:14px/1.5 -apple-system,"Hiragino Sans","Noto Sans CJK JP",sans-serif}
+  #map{position:absolute;inset:0}
+  .panel{position:absolute;top:10px;right:10px;z-index:1000;background:rgba(20,20,24,.92);
+    border:1px solid #333;border-radius:8px;padding:10px 12px;max-width:46vw;
+    max-height:82vh;overflow:auto;-webkit-overflow-scrolling:touch}
+  .panel h1{font-size:14px;margin:0 0 6px}
+  .panel .sub{font-size:11px;color:#888;margin:0 0 8px}
+  .panel label{display:flex;align-items:center;gap:6px;font-size:12px;padding:2px 0;cursor:pointer}
+  .sw{width:11px;height:11px;border-radius:50%;flex:0 0 auto}
+  .leaflet-popup-content-wrapper,.leaflet-popup-tip{background:#1b1b20;color:#eee}
+  .leaflet-popup-content{margin:8px 10px;font-size:13px}
+  @media (max-width:640px){.panel{max-width:60vw;font-size:12px;top:8px;right:8px;padding:8px}}
+</style>
+</head>
+<body>
+<div id="map"></div>
+<div class="panel">
+  <h1>大阪車站線路疊加圖 <span style="color:#888;font-weight:400">v0</span></h1>
+  <p class="sub">顯示層：軌道幾何 + 事業者著色站點<br>資料 OSM／府界裁剪 513 站</p>
+  <div id="legend"></div>
+</div>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script>
+const COLORS = {
+  'JR':'#3fa9f5','Metro':'#37d67a','近鉄':'#f2545b','南海':'#ffa94d','阪急':'#b57edc',
+  '京阪':'#4dd0c1','阪神':'#f7d154','モノレール':'#9aa7b1','阪堺':'#ff7ab6',
+  'その他':'#8d99ae','未分類':'#666'
+};
+const HUBS = ['梅田','難波','天王寺','京橋'];
+
+const map = L.map('map',{zoomControl:false}).setView([34.69,135.51],11);
+L.control.zoom({position:'bottomright'}).addTo(map);
+L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',{
+  attribution:'&copy; OpenStreetMap contributors &copy; CARTO',maxZoom:19
+}).addTo(map);
+
+const lineLayer = L.layerGroup().addTo(map);
+const groups = {};
+
+fetch('lines_osaka.json').then(r=>r.json()).then(ws=>{
+  // 幾何は線名を持たないので一律の細線で敷く（v0の表示層の役目は地形の把握）
+  const seg = ws.map(w=>w.c);
+  L.polyline(seg,{color:'#5a6472',weight:1.1,opacity:.75}).addTo(lineLayer);
+});
+
+fetch('stations_final.json').then(r=>r.json()).then(sts=>{
+  const legend = document.getElementById('legend');
+  const counts = {};
+  sts.forEach(s=>{counts[s.grp]=(counts[s.grp]||0)+1;});
+  sts.forEach(s=>{
+    const g = s.grp || '未分類';
+    if(!groups[g]) groups[g] = L.layerGroup().addTo(map);
+    const hub = HUBS.includes(s.name);
+    const m = hub
+      ? L.marker([s.lat,s.lon],{icon:L.divIcon({className:'',html:
+          '<div style="font-size:20px;line-height:20px;text-shadow:0 0 4px #000">★</div>',
+          iconSize:[20,20],iconAnchor:[10,10]})})
+      : L.circleMarker([s.lat,s.lon],{radius:3.2,color:COLORS[g]||'#888',weight:1,
+          fillColor:COLORS[g]||'#888',fillOpacity:.85});
+    m.bindPopup('<b>'+s.name+'</b><br>'+g+(hub?'<br><span style="color:#f7d154">四樞紐</span>':''));
+    m.addTo(groups[g]);
+  });
+  Object.keys(counts).sort((a,b)=>counts[b]-counts[a]).forEach(g=>{
+    const id='ck_'+g;
+    const row=document.createElement('label');
+    row.innerHTML='<input type="checkbox" id="'+id+'" checked>'+
+      '<span class="sw" style="background:'+(COLORS[g]||'#888')+'"></span>'+g+
+      ' <span style="color:#888">'+counts[g]+'</span>';
+    legend.appendChild(row);
+    row.querySelector('input').addEventListener('change',e=>{
+      e.target.checked ? map.addLayer(groups[g]) : map.removeLayer(groups[g]);
+    });
+  });
+  const row=document.createElement('label');
+  row.innerHTML='<input type="checkbox" checked><span class="sw" style="background:#5a6472"></span>軌道幾何';
+  legend.appendChild(row);
+  row.querySelector('input').addEventListener('change',e=>{
+    e.target.checked ? map.addLayer(lineLayer) : map.removeLayer(lineLayer);
+  });
+});
+</script>
+</body>
+</html>
