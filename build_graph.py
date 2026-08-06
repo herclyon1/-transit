@@ -674,6 +674,60 @@ def fallback_patterns(reg, covered_ids):
     return out
 
 
+def express_patterns(reg, pats):
+    """express_patterns.json の停車駅名リストを、既存の各停パターンに重ねて服务型にする。
+
+    OSM に優等の route relation が無い線（京阪本線・南海高野線・近鉄各線・阪急宝塚本線・
+    阪神本線）で、各停の駅列から停車駅だけを抜いて跳站列を作る。
+    駅の同定は各停パターン内の駅名で行うので、拓扑と座標は既存のものをそのまま使える。
+    """
+    path = os.path.join(HERE, "express_patterns.json")
+    if not os.path.exists(path):
+        return []
+    with open(path) as f:
+        spec = json.load(f)
+    base = {}
+    for p in pats:
+        if p["service_class"] == "普通":
+            cur = base.get(p["line_key"])
+            if cur is None or len(p["stops"]) > len(cur["stops"]):
+                base[p["line_key"]] = p
+    out = []
+    for page, o in spec.items():
+        b = base.get(o["line_key"])
+        if b is None:
+            print(f"  ★{page}: 各停パターンが無く優等を重ねられない ({o['line_key']})")
+            continue
+        idx = {norm_name(n): i for i, n in enumerate(b["stop_names"])}
+        for cls, stops in o["patterns"].items():
+            picked, seen = [], set()
+            for nm in stops:
+                i = idx.get(norm_name(nm))
+                if i is not None and i not in seen:
+                    seen.add(i)
+                    picked.append(i)
+            picked.sort()
+            if len(picked) < 3:
+                continue
+            cover = len(picked) / max(1, len(stops))
+            if cover < 0.5:
+                print(f"  ★{page}|{cls}: 各停側に照合できた駅が {len(picked)}/{len(stops)} "
+                      f"しかないので採用しない")
+                continue
+            seg = [round(sum(b["seg_km"][a:c]), 4) for a, c in zip(picked, picked[1:])]
+            out.append({
+                "src": f"wikipedia:{o['source']}",
+                "operator": b["operator"], "name": f"{o['line_key'].split('|')[-1]} {cls}",
+                "route": b["route"], "line_key": o["line_key"], "service_class": cls,
+                "class_keyword": cls, "class_inferred": False,
+                "stops": [b["stops"][i] for i in picked],
+                "stop_names": [b["stop_names"][i] for i in picked],
+                "seg_km": seg, "order_repaired": False,
+                "express_coverage": round(cover, 3),
+            })
+    return out
+
+
 def dedupe(patterns):
     """同一系統の重複 relation（方向違い・分割違い）を潰す。停車駅集合が同じものは1本にする。"""
     best = {}
@@ -733,9 +787,29 @@ def annotate_levels(reg, pats):
                     and meters(t["lat"], t["lon"], s["lat"], s["lon"]) < 300):
                 osaka.add(s["osm_id"])
                 break
+    # 同一路線の速達種別は互いに代替可能なので頻度を合算して層を決める。
+    # 3本/h 判定を「運行系統ごと」に当てると、速達が複数種別に分かれている郊外線が
+    # まとめてB層に落ちる（実測: 南海高野線は急行2+区間急行2+準急行2で実際は毎時6本の
+    # 速達があるのに、種別単位だと全部 3本/h 未満になり既定ビューから消えた）。
+    # 愛称列車は line_key 自体が独立しているのでこの合算に巻き込まれない
+    # （はるかは単独2本/h のまま B層）。各停は速達ではないので合算に入れない。
+    # 種別ごとに1回だけ数える。パターン単位で足すと上下2方向で同じ系統を二重計上し、
+    # 単独2本/hの はるか が 4本/h と誤認されてA層に昇格した（梅田→天王寺が10.5分に化けた）。
+    fast_cls = defaultdict(dict)
+    for p in pats:
+        _, hw, _, _, _, _, _ = classify(p["line_key"], p["service_class"])
+        if hw and p["service_class"] != "普通":
+            fast_cls[p["line_key"]][p["service_class"]] = hw
+    fast_sum = {k: sum(v.values()) for k, v in fast_cls.items()}
+
     miss, tally = [], defaultdict(int)
     for p in pats:
         layer, hw, role, fare, conf, src, why = classify(p["line_key"], p["service_class"])
+        if (layer == "B" and p["service_class"] != "普通"
+                and fast_sum.get(p["line_key"], 0) >= 3):
+            layer = "A"
+            why += (f"／同一路線の速達種別を合算すると "
+                    f"{fast_sum[p['line_key']]:g}本/h あり代替可能")
         p.update(layer=layer, headway_daytime=hw, service_role=role, fare_extra=fare,
                  headway_conf=conf, headway_src=src, role_reason=why)
         p["in_osaka"] = any(i in osaka for i in p["stops"])
@@ -804,6 +878,9 @@ def main():
         print(f"fallback: {p['name']} 駅数={len(p['stops'])}")
     pats = [q for p in (pats + fb) for q in split_pattern(p)]
     pats = dedupe(pats)
+    ex = express_patterns(reg, pats)
+    print(f"Wikipedia 由来の優等停車型: {len(ex)}")
+    pats = dedupe(pats + ex)
     print(f"区間分割・重複除去後: {len(pats)}")
 
     canonical_stations(reg)
