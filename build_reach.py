@@ -44,6 +44,7 @@ def build_graph(data, speeds, include_b):
     reg = {s["osm_id"]: s for s in data["stations"]}
     adj = defaultdict(list)
     edge_prov = {}
+    board_wait = {}
     node_station = {}
     station_nodes = defaultdict(set)
 
@@ -53,15 +54,20 @@ def build_graph(data, speeds, include_b):
         if p["layer"] == "B" and not include_b:
             continue
         v, vprov, _ = speeds[(p["line_key"], p["service_class"])]
-        wait = 0.0
+        # 期待待ち時間は「乗るとき1回」であって区間ごとではない。
+        # 各辺に足すと3駅乗るのに3回待つ計算になり、低頻度層が永久に選ばれなくなる
+        # （実測: 全駅で t_low == t_default になり ⚡ が一度も出なかった）。
+        # そこで B層は別ノード空間に置き、待ち時間は乗換辺（＝乗車開始）に課す。
+        lkey = p["line_key"] + ("#B" if p["layer"] == "B" else "")
         if p["layer"] == "B" and p.get("headway_daytime"):
-            wait = 60.0 / p["headway_daytime"] / 2.0
+            board_wait[lkey] = max(board_wait.get(lkey, 0.0),
+                                   60.0 / p["headway_daytime"] / 2.0)
         sids = [reg[i]["station_id"] for i in p["stops"] if i in reg]
         if len(sids) != len(p["stops"]):
             continue
         names = p["stop_names"]
         for sid in sids:
-            n = (sid, p["line_key"])
+            n = (sid, lkey)
             node_station[n] = sid
             station_nodes[sid].add(n)
         for idx, (a, b, km) in enumerate(zip(sids, sids[1:], p["seg_km"])):
@@ -73,8 +79,7 @@ def build_graph(data, speeds, include_b):
             eprov = PROV_RANK["measured"] if t is not None else PROV_RANK[vprov]
             if t is None:
                 t = segment_minutes(km, v)
-            t += wait
-            na, nb = (a, p["line_key"]), (b, p["line_key"])
+            na, nb = (a, lkey), (b, lkey)
             adj[na].append((nb, t))
             adj[nb].append((na, t))
             edge_prov[(na, nb)] = edge_prov[(nb, na)] = eprov
@@ -97,8 +102,9 @@ def build_graph(data, speeds, include_b):
             complex_members[g].add(sid)
 
     def link(n1, n2, minutes):
-        adj[n1].append((n2, minutes))
-        adj[n2].append((n1, minutes))
+        # 乗車開始にあたるので、低頻度層のノードへ入る向きにだけ期待待ち時間を課す
+        adj[n1].append((n2, minutes + board_wait.get(n2[1], 0.0)))
+        adj[n2].append((n1, minutes + board_wait.get(n1[1], 0.0)))
 
     for sid, nodes in station_nodes.items():
         nodes = list(nodes)
