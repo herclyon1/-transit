@@ -38,6 +38,21 @@ def load():
 
 MEASURED = measured_segments()
 
+# 直通運転: OSM relation が事業者・路線境界で切れているせいで生じる偽の乗換。
+# 日中も高頻度で直通する組だけを列挙する（朝夕のみの日生エクスプレス等は入れない）。
+# 御堂筋線⇄北大阪急行は OSM 側で既に1本の pattern なのでここには不要。
+# 阪神なんば線⇄近鉄奈良線の大阪難波は難波枢纽群内なので枢纽時間には影響しない。
+THROUGH = {
+    ("大阪市高速電気軌道|中央線", "近畿日本鉄道|けいはんな線"),   # 長田: 全列車直通
+    ("大阪市高速電気軌道|堺筋線", "阪急電鉄|千里線"),             # 天神橋筋六丁目
+    ("南海電気鉄道|高野線", "南海電気鉄道|泉北線"),               # 中百舌鳥: 準急/区急直通
+}
+
+
+def is_through(k1, k2):
+    a, b = k1.split("#")[0], k2.split("#")[0]
+    return (a, b) in THROUGH or (b, a) in THROUGH
+
 
 def build_graph(data, speeds, include_b):
     """(隣接リスト, 節点->駅, 駅->節点集合) を返す。節点は (station_id, line_key)。"""
@@ -120,7 +135,11 @@ def build_graph(data, speeds, include_b):
             for j in range(i + 1, len(nodes)):
                 op_a = nodes[i][1].split("|")[0]
                 op_b = nodes[j][1].split("|")[0]
-                link(nodes[i], nodes[j], IG.transfer_minutes(g, op_a, op_b))
+                if is_through(nodes[i][1], nodes[j][1]):
+                    # 直通運転: 乗ったまま走り抜けるので罰時なし
+                    link(nodes[i], nodes[j], 0.0)
+                else:
+                    link(nodes[i], nodes[j], IG.transfer_minutes(g, op_a, op_b))
 
     for g, sids in complex_members.items():
         sids = [s for s in sids if s in station_nodes]
