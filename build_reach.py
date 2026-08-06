@@ -45,6 +45,7 @@ def build_graph(data, speeds, include_b):
     adj = defaultdict(list)
     edge_prov = {}
     board_wait = {}
+    b_info = {}   # 低頻度ノードの路線キー -> (表示名, 特急券が要るか)
     node_station = {}
     station_nodes = defaultdict(set)
 
@@ -59,9 +60,15 @@ def build_graph(data, speeds, include_b):
         # （実測: 全駅で t_low == t_default になり ⚡ が一度も出なかった）。
         # そこで B層は別ノード空間に置き、待ち時間は乗換辺（＝乗車開始）に課す。
         lkey = p["line_key"] + ("#B" if p["layer"] == "B" else "")
-        if p["layer"] == "B" and p.get("headway_daytime"):
-            board_wait[lkey] = max(board_wait.get(lkey, 0.0),
-                                   60.0 / p["headway_daytime"] / 2.0)
+        if p["layer"] == "B":
+            if p.get("headway_daytime"):
+                board_wait[lkey] = max(board_wait.get(lkey, 0.0),
+                                       60.0 / p["headway_daytime"] / 2.0)
+            disp = p["line_key"].split("|", 1)[-1]
+            if p["service_class"] not in ("普通",):
+                disp = f'{disp} {p["service_class"]}'
+            prev = b_info.get(lkey)
+            b_info[lkey] = (disp, bool(p.get("fare_extra")) or (prev[1] if prev else False))
         sids = [reg[i]["station_id"] for i in p["stops"] if i in reg]
         if len(sids) != len(p["stops"]):
             continue
@@ -125,24 +132,25 @@ def build_graph(data, speeds, include_b):
                     for n2 in station_nodes[sids[j]]:
                         link(n1, n2, IG.transfer_minutes(g, "x", "y"))
 
-    return adj, node_station, station_nodes, sid_name, complex_members, edge_prov
+    return adj, node_station, station_nodes, sid_name, complex_members, edge_prov, b_info
 
 
 PROV_RANK = {"measured": 0, "anchored": 1, "borrowed": 2}
 PROV_NAME = ["measured", "anchored", "borrowed"]
 
 
-def dijkstra_multi(adj, sources, edge_prov=None):
+def dijkstra_multi(adj, sources, edge_prov=None, b_info=None):
     """最短時間と、その経路上で最も弱い出典等級を返す。
 
     prov は経路上の最悪値を採る —— 1区間でも borrowed が混ざれば、
     その駅の数値は borrowed 相当の不確かさを持つ。
     """
-    dist, prov = {}, {}
+    dist, prov, via = {}, {}, {}
     pq = []
     for s in sources:
         dist[s] = 0.0
         prov[s] = 0
+        via[s] = None
         heapq.heappush(pq, (0.0, s))
     while pq:
         d, u = heapq.heappop(pq)
@@ -154,31 +162,36 @@ def dijkstra_multi(adj, sources, edge_prov=None):
                 dist[v] = nd
                 r = edge_prov.get((u, v), 0) if edge_prov else 0
                 prov[v] = max(prov[u], r)
+                # 経路上で最初に乗った低頻度系統を覚えておく（popup の ⚡ 表示用）
+                via[v] = via[u] or ((b_info or {}).get(v[1]))
                 heapq.heappush(pq, (nd, v))
-    return dist, prov
+    return dist, prov, via
 
 
 def hub_times(data, speeds, include_b):
-    adj, node_station, station_nodes, sid_name, complex_members, edge_prov = build_graph(
+    adj, node_station, station_nodes, sid_name, complex_members, edge_prov, b_info = build_graph(
         data, speeds, include_b)
-    out, out_prov = {}, {}
+    out, out_prov, out_via = {}, {}, {}
     for hub in IG.HUBS:
         srcs = [n for sid in complex_members.get(hub, ()) for n in station_nodes.get(sid, ())]
         if not srcs:
             print(f"  ★枢纽 {hub} の節点が見つからない")
             out[hub] = {}
             out_prov[hub] = {}
+            out_via[hub] = {}
             continue
-        dist, prov = dijkstra_multi(adj, srcs, edge_prov)
-        best, bp = {}, {}
+        dist, prov, via = dijkstra_multi(adj, srcs, edge_prov, b_info)
+        best, bp, bv = {}, {}, {}
         for n, d in dist.items():
             sid = node_station[n]
             if d < best.get(sid, 1e18):
                 best[sid] = d
                 bp[sid] = prov[n]
+                bv[sid] = via[n]
         out[hub] = best
         out_prov[hub] = bp
-    return out, station_nodes, sid_name, out_prov
+        out_via[hub] = bv
+    return out, station_nodes, sid_name, out_prov, out_via
 
 
 # 枢纽は駅群なので、枢纽間の所要時間は「群内のどの駅どうしでもよい最短」になる。
@@ -212,8 +225,8 @@ def main():
     print("  provenance:", dict(prov))
 
     print("\n図A(既定) / 図B(低頻度優等を含む) を解く...")
-    ta, station_nodes, sid_name, pa = hub_times(data, speeds, include_b=False)
-    tb, _, _, _ = hub_times(data, speeds, include_b=True)
+    ta, station_nodes, sid_name, pa, _ = hub_times(data, speeds, include_b=False)
+    tb, _, _, _, vb = hub_times(data, speeds, include_b=True)
 
     # 標尺チェック
     name_sid = defaultdict(list)
@@ -246,22 +259,40 @@ def main():
 
     v0 = json.load(open(os.path.join(HERE, "stations_final.json")))
     reg = {s["osm_id"]: s for s in data["stations"]}
+    # 同じ物理駅に複数ノードがあるので、v0の513站に一致したノードを優先して代表にする
     sid_pos = {}
-    for s in reg.values():
-        if "station_id" in s:
+    for s in sorted(reg.values(), key=lambda x: 0 if x.get("v0") else 1):
+        if "station_id" in s and s["station_id"] not in sid_pos:
             sid_pos[s["station_id"]] = (s["station_lat"], s["station_lon"], s["name"],
                                         s.get("grp", ""))
+    # 事業者は その駅に停まる服务型から集める（v0の513站に載らない緩衝帯の駅にも付く）
+    sid_ops = defaultdict(set)
+    for p_ in data["patterns"]:
+        if p_["layer"] == "excluded":
+            continue
+        for i in p_["stops"]:
+            if i in reg and "station_id" in reg[i]:
+                sid_ops[reg[i]["station_id"]].add(p_["operator"])
+    # 抽出bboxの外（東海道本線が関東まで伸びている等）は地図の対象外
+    BB = (34.27, 135.09, 35.06, 135.78)
     rows = []
     for sid, (lat, lon, nm, grp) in sorted(sid_pos.items()):
+        if not (BB[0] <= lat <= BB[2] and BB[1] <= lon <= BB[3]):
+            continue
         td = [ta[h].get(sid) for h in IG.HUBS]
         tl = [tb[h].get(sid) for h in IG.HUBS]
         if all(x is None for x in tl):
             continue
+        if min([x for x in tl if x is not None]) > 120:
+            continue
         rows.append({
             "station_id": sid, "name": nm, "lat": lat, "lon": lon, "grp": grp,
+            "in_v0": bool(grp), "ops": sorted(sid_ops.get(sid, ())),
             "t_default": [None if x is None else round(x, 1) for x in td],
             "t_low": [None if x is None else round(x, 1) for x in tl],
             "prov": [PROV_NAME[pa[h][sid]] if sid in pa[h] else None for h in IG.HUBS],
+            "via": [(vb[h].get(sid) or [None, False])[0] for h in IG.HUBS],
+            "fare": [bool((vb[h].get(sid) or [None, False])[1]) for h in IG.HUBS],
         })
     path = os.path.join(HERE, "reach.json")
     with open(path, "w") as f:
