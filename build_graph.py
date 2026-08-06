@@ -128,57 +128,126 @@ def norm_name(s):
     return NAME_ALIAS.get(s, s)
 
 
-# 運行種別。長いものから順に当てる（区間急行 が 急行 に食われないように）
-CLASS_PATTERNS = [
-    ("特急", ["快速特急", "通勤特急", "特急", "ラピート", "ひのとり", "アーバンライナー",
-             "はるか", "くろしお", "サンダーバード", "こうのとり", "はまかぜ", "びわこエクスプレス",
-             "しまかぜ", "あをによし", "らくラク"]),
+# 列車愛称。種別の判定には使うが、路線キーからは落とさない
+# （落とすと「特急ラピートα」が路線キー "α" に化ける）。
+TRAIN_NAMES = {
+    "特急": ["ラピート", "ひのとり", "アーバンライナー", "はるか", "くろしお", "サンダーバード",
+            "こうのとり", "はまかぜ", "びわこエクスプレス", "しまかぜ", "あをによし",
+            "青の交響曲", "まほろば", "らくラク", "サザン", "こうや", "りんかん", "泉北ライナー"],
+    "新幹線": ["のぞみ", "ひかり", "こだま", "みずほ", "さくら", "つばめ"],
+}
+# 一般的な種別語。長いものから順に当てる（区間急行 が 急行 に食われないように）。路線キーからは落とす。
+CLASS_TOKENS = [
+    ("新快速", ["新快速"]),
+    ("特急", ["快速特急", "通勤特急", "準特急", "特急"]),
     ("ライナー", ["ライナー"]),
     ("快速急行", ["快速急行"]),
     ("区間急行", ["区間急行", "区急"]),
     ("急行", ["空港急行", "急行"]),
     ("区間準急", ["区間準急"]),
-    ("準急", ["準急"]),
-    ("新快速", ["新快速"]),
-    ("快速", ["直通快速", "区間快速", "大和路快速", "関空快速", "紀州路快速", "丹波路快速",
-             "みやこ路快速", "快速"]),
+    ("準急", ["準急行", "準急"]),
+    ("快速", ["直通快速", "区間快速", "快速"]),
     ("普通", ["普通", "各駅停車", "各停"]),
 ]
 ALL_STOP_ROUTES = {"subway", "monorail", "tram", "light_rail"}
 
 
 def service_class(name, route):
+    """(種別, 判定根拠, 推定フラグ) を返す。新幹線は専用種別にして後段で除外する。"""
     n = unicodedata.normalize("NFKC", name or "")
-    for cls, keys in CLASS_PATTERNS:
+    for k in TRAIN_NAMES["新幹線"]:
+        if k in n:
+            return "新幹線", k, False
+    for cls, keys in CLASS_TOKENS:
         for k in keys:
             if k in n:
                 return cls, k, False
+    for k in TRAIN_NAMES["特急"]:
+        if k in n:
+            return "特急", k, False
     if route in ALL_STOP_ROUTES:
         return "普通", None, True
-    return "普通", None, True  # 種別語なしの train は各停系統とみなす（inferred フラグを立てる）
+    return "普通", None, True  # 種別語なしの train は各停系統とみなす（inferred を立てる）
 
 
-_PAREN = re.compile(r"[（(].*?[）)]")
-_OP_PREFIX = re.compile(r"^(Osaka Metro|Osaka Metor|大阪市高速電気軌道|JR|ＪＲ|近鉄|阪急|阪神|南海|京阪|泉北)")
+_PAREN = re.compile(r"[（(\[].*?[）)\]]")
+# 路線名に埋まっている社名。長いものから消す
+_COMPANY_IN_NAME = ["大阪市高速電気軌道", "近畿日本鉄道", "南海電気鉄道", "京阪電気鉄道",
+                    "阪神電気鉄道", "阪堺電気軌道", "泉北高速鉄道", "山陽電気鉄道",
+                    "神戸電鉄", "能勢電鉄", "水間鉄道", "叡山電鉄", "京福電気鉄道",
+                    "阪急電鉄", "大阪モノレール", "Osaka Metro", "Osaka Metor",
+                    "JR", "ＪＲ", "近鉄", "阪急", "阪神", "南海", "京阪"]
+# 「A => B」「: A -> B」等、括弧に入っていない方向表記
+_DIRECTION = re.compile(r"\s*[:：]?\s*[^\s:：]+\s*(=>|->|⇒|→)\s*[^\s:：]+\s*$")
+_OP_CANON = {"JR West": "西日本旅客鉄道", "JR西日本": "西日本旅客鉄道",
+             "南海電鉄": "南海電気鉄道", "Kintetsu Corporation": "近畿日本鉄道",
+             "阪神電車": "阪神電気鉄道", "阪堺電車": "阪堺電気軌道",
+             "東海旅客鉄道株式会社": "東海旅客鉄道", "京福電気鉄道株式会社": "京福電気鉄道",
+             "叡山電鉄株式会社": "叡山電鉄"}
+# operator タグが空の relation 用。路線名から事業者を引く
+_OP_FROM_NAME = [("南海", "南海電気鉄道"), ("阪急", "阪急電鉄"), ("阪神", "阪神電気鉄道"),
+                 ("近鉄", "近畿日本鉄道"), ("京阪", "京阪電気鉄道"), ("阪堺", "阪堺電気軌道"),
+                 ("能勢電鉄", "能勢電鉄"), ("水間", "水間鉄道"), ("泉北", "泉北高速鉄道"),
+                 ("Osaka Metro", "大阪市高速電気軌道"), ("Osaka Metor", "大阪市高速電気軌道"),
+                 ("JR", "西日本旅客鉄道"), ("ＪＲ", "西日本旅客鉄道")]
+# 事業者をまたいで直通する運行系統は、直通先ではなく主たる運行会社に寄せる
+_OP_BY_TRAIN = {"サザン": "南海電気鉄道", "ラピート": "南海電気鉄道",
+                "泉北ライナー": "南海電気鉄道", "直通特急": "山陽電気鉄道",
+                "関空快速": "西日本旅客鉄道", "紀州路快速": "西日本旅客鉄道",
+                "大和路快速": "西日本旅客鉄道", "丹波路快速": "西日本旅客鉄道",
+                "みやこ路快速": "西日本旅客鉄道", "直通快速": "西日本旅客鉄道",
+                "区間快速": "西日本旅客鉄道", "はまかぜ": "西日本旅客鉄道",
+                "こうのとり": "西日本旅客鉄道", "サンダーバード": "西日本旅客鉄道",
+                "はるか": "西日本旅客鉄道", "くろしお": "西日本旅客鉄道"}
+
+
+def canon_operator(operator, name=""):
+    """路線名に社名が入っていればそれを優先する。
+
+    operator タグは同じ路線でも relation ごとに揺れる（実測: 泉北線の上り/下りが
+    南海電気鉄道 と 泉北高速鉄道 に割れていた）。路線名の方が識別子として安定している。
+    """
+    n = unicodedata.normalize("NFKC", name or "")
+    for k, v in _OP_FROM_NAME:
+        if k in n:
+            return v
+    op = unicodedata.normalize("NFKC", operator or "").split(";")[0].strip()
+    op = _OP_CANON.get(op, op)
+    if op:
+        return op
+    for k, v in _OP_BY_TRAIN.items():
+        if k in n:
+            return v
+    return "(unknown)"
 
 
 def line_key(name, operator):
-    """節点分割用の路線キー。種別語・方向カッコ・事業者接頭辞を落として正規化する。"""
+    """節点分割用の路線キー。方向カッコ・社名・一般種別語を落として正規化する。
+
+    列車愛称は落とさない（愛称列車は路線ではなく系統そのものが識別子になるため）。
+    ここが揺れると同一路線が別ノードに割れて、存在しない乗換罰時が入る。
+    """
     n = unicodedata.normalize("NFKC", name or "")
     n = _PAREN.sub("", n)
-    for _, keys in CLASS_PATTERNS:
+    n = _DIRECTION.sub("", n)
+    # 愛称を退避してから種別語を落とす（「アーバンライナー」から ライナー が抜けるのを防ぐ）
+    holds = {}
+    for i, k in enumerate(sorted(sum(TRAIN_NAMES.values(), []), key=len, reverse=True)):
+        if k in n:
+            tok = f"\x00{i}\x00"
+            holds[tok] = k
+            n = n.replace(k, tok)
+    for c in _COMPANY_IN_NAME:
+        n = n.replace(c, "")
+    for _, keys in CLASS_TOKENS:
         for k in keys:
             n = n.replace(k, "")
-    n = n.replace("Osaka Metro", "").replace("Osaka Metor", "")
-    n = n.strip(" 　・:")
-    n = _OP_PREFIX.sub("", n) or n
-    op = unicodedata.normalize("NFKC", operator or "").split(";")[0]
-    op = {"JR West": "西日本旅客鉄道", "JR西日本": "西日本旅客鉄道",
-          "南海電鉄": "南海電気鉄道", "Kintetsu Corporation": "近畿日本鉄道",
-          "阪神電車": "阪神電気鉄道", "阪堺電車": "阪堺電気軌道",
-          "東海旅客鉄道株式会社": "東海旅客鉄道", "京福電気鉄道株式会社": "京福電気鉄道",
-          "叡山電鉄株式会社": "叡山電鉄"}.get(op, op)
-    return f"{op}|{n}" if n else f"{op}|{unicodedata.normalize('NFKC', name or '')}"
+    for tok, k in holds.items():
+        n = n.replace(tok, k)
+    n = n.strip(" 　・:-ー―−")
+    if not n:  # 種別語だけの名前だった
+        n = _PAREN.sub("", unicodedata.normalize("NFKC", name or "")).strip()
+    return f"{canon_operator(operator, name)}|{n}"
 
 
 # ---------------------------------------------------------------- 駅レジストリ
@@ -318,7 +387,7 @@ def relation_patterns(reg):
         cls, kw, inferred = service_class(t.get("name", ""), t.get("route", ""))
         out.append({
             "src": f"osm:relation/{r['id']}",
-            "operator": t.get("operator", ""),
+            "operator": canon_operator(t.get("operator", ""), t.get("name", "")),
             "name": t.get("name", ""),
             "route": t.get("route", ""),
             "line_key": line_key(t.get("name", ""), t.get("operator", "")),
