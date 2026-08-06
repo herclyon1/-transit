@@ -87,6 +87,7 @@ html[data-theme=dark] .warn{color:#ff8a80}
     <input type="range" id="wk" min="0" max="20" step="1" value="10">
   </div>
   <div id="stat"></div>
+  <div id="areastat" style="color:var(--sub);font-size:10.5px"></div>
   <button id="more">图例与说明 ▾</button>
 </div>
 
@@ -164,7 +165,21 @@ const css = c => 'rgb('+c[0]+','+c[1]+','+c[2]+')';
 
 let DATA=null, layer=L.layerGroup().addTo(map);
 
-const WALK_M_PER_MIN = 80;   // 4.8km/h。直線距離で見るので河川・高速などの障壁は無視している
+const WALK_M_PER_MIN = 80;   // 4.8km/h（等時圏の取得時も同じ歩速を指定してある）
+
+// 実路網の徒歩等時圏（5/10/15/20分, station_id → {5:[ring...],...}）。
+// 2MB 級なので面覆盖を初めて開いたときに読む
+let WALK = null, walkLoading = null;
+function ensureWalk(){
+  if(WALK || walkLoading) return;
+  walkLoading = fetch('walk_polys.json').then(r=>{
+    if(!r.ok) throw new Error(r.status);
+    return r.json();
+  }).then(w=>{
+    WALK = w;
+    if(map.hasLayer(areaLayer)) areaLayer.draw();
+  }).catch(e=>{ console.warn('walk_polys 読み込み失敗、直線円で継続', e); });
+}
 
 // 面カバレッジ: 画面をセル格子に切り、各セルについて
 //   ある枢纽hへの総時間 = min over 駅s ( 軌道時間(s→h) + 徒歩時間(セル→s) )
@@ -234,7 +249,7 @@ const AreaLayer = L.Layer.extend({
       if(!any) continue;
       const p = map.latLngToContainerPoint([s.lat,s.lon]);
       if(p.x < -margin || p.y < -margin || p.x > size.x+margin || p.y > size.y+margin) continue;
-      acts.push({p,t});
+      acts.push({p,t, polys: WALK ? (WALK[s.station_id]||null) : null});
     }
     if(!acts.length) return;
     const BUDGET = 2.5e6;
@@ -252,8 +267,105 @@ const AreaLayer = L.Layer.extend({
 
     const best = new Float32Array(W*H*4).fill(Infinity);
     const Rc2 = Rc*Rc, Ri = Math.ceil(Rc);
-    for(const {p,t} of acts){
+    // ポリゴン頂点は1フレームで30万点級になり、latLngToContainerPoint の
+    // オブジェクト生成が支配的になる。手動メルカトル（Leafletと同じ式）＋
+    // 参照点差分でセル座標へ直接落とす
+    const ws = 256 * Math.pow(2, map.getZoom());
+    const refLL = [34.66, 135.52], refCP = map.latLngToContainerPoint(refLL);
+    const k = dpr/CELLdev;
+    const offX = (refLL[1]+180)/360*ws - refCP.x;
+    const offY = (0.5 - Math.log(Math.tan(Math.PI/4 + refLL[0]*Math.PI/360))
+                  /(2*Math.PI))*ws - refCP.y;
+    const projCX = lon => ((lon+180)/360*ws - offX)*k;
+    const projCY = lat => ((0.5 - Math.log(Math.tan(Math.PI/4 + lat*Math.PI/360))
+                  /(2*Math.PI))*ws - offY)*k;
+    let noPoly = 0;
+    for(const {p,t,polys} of acts){
       const cx = p.x*dpr/CELLdev, cy = p.y*dpr/CELLdev;
+
+      if(polys){
+        // 実路網等時圏（5/10/15/20分の4帯）でスタンプする。
+        // セルの歩行分 = max(直線分, 帯の下限)。直線分は路網分の下界なので
+        // これも下界のまま。スライダーが帯境界ちょうど(5/10/15/20)のときは
+        // 塗り境界が路網ポリゴンと厳密に一致し、中間値は直線分で帯内を補間する。
+        // canvas塗りではなく走査線で塗る：アンチエイリアスで帯番号が混ざらないように。
+        let mnX=Infinity,mnY=Infinity,mxX=-Infinity,mxY=-Infinity;
+        const cont = [];               // 昇順。帯下限 ≥ B の帯は塗っても無駄
+        for(const m of [5,10,15,20]){
+          if(m-5 >= B) break;
+          if(!polys[m]) continue;
+          cont.push({low:m-5, rings:polys[m].map(r=>{
+            const n=r.length, f=new Float64Array(2*n);
+            for(let i=0;i<n;i++){
+              const x=projCX(r[i][1]), y=projCY(r[i][0]);
+              f[2*i]=x; f[2*i+1]=y;
+              if(x<mnX)mnX=x; if(x>mxX)mxX=x;
+              if(y<mnY)mnY=y; if(y>mxY)mxY=y;
+            }
+            return f;
+          })});
+        }
+        if(!cont.length){ noPoly++; continue; }
+        const x0 = Math.max(0, Math.floor(mnX)), x1 = Math.min(W-1, Math.ceil(mxX));
+        const y0 = Math.max(0, Math.floor(mnY)), y1 = Math.min(H-1, Math.ceil(mxY));
+        if(x1<x0 || y1<y0) continue;
+        const bw = x1-x0+1, rows = y1-y0+1;
+        // 交点は「行ごとに全辺を走査」ではなく「辺ごとに跨る行へ配る」。
+        // 前者は 行数×辺数、後者は周長セル数で済む（実測で描画が1/3になった）
+        for(const c of cont){
+          c.rowXs = Array.from({length: rows}, ()=>[]);
+          for(const f of c.rings){
+            const n = f.length/2;
+            for(let i=0;i<n;i++){
+              const j = i+1<n ? i+1 : 0;
+              const ax=f[2*i], ay=f[2*i+1], bx=f[2*j], by=f[2*j+1];
+              const ylo = ay<by?ay:by, yhi = ay<by?by:ay;
+              // 行中心 yc=ry+0.5 が [ylo,yhi) に入る行だけ（半開＝頂点二重計上なし）
+              let ry = Math.max(y0, Math.ceil(ylo-0.5));
+              const ryEnd = Math.min(y1, Math.ceil(yhi-0.5)-1);
+              for(; ry<=ryEnd; ry++){
+                const yc = ry+0.5;
+                c.rowXs[ry-y0].push(ax + (yc-ay)/(by-ay)*(bx-ax));
+              }
+            }
+          }
+        }
+        const rowLow = new Float32Array(bw);
+        for(let y=y0; y<=y1; y++){
+          rowLow.fill(-1);
+          const yc = y+0.5;
+          // 小さい帯から: 未設定セルだけ埋める → 最小包含帯の下限が残る
+          for(const c of cont){
+            const xs = c.rowXs[y-y0];
+            if(xs.length<2) continue;
+            xs.sort((u,v)=>u-v);
+            for(let k=0;k+1<xs.length;k+=2){
+              const xa=Math.max(x0, Math.ceil(xs[k]-0.5)),
+                    xb=Math.min(x1, Math.floor(xs[k+1]-0.5));
+              for(let x=xa;x<=xb;x++) if(rowLow[x-x0]<0) rowLow[x-x0]=c.low;
+            }
+          }
+          const dy = yc-cy, dy2=dy*dy;
+          for(let x=x0;x<=x1;x++){
+            const lo = rowLow[x-x0];
+            if(lo<0) continue;
+            const dx = x+0.5-cx;
+            const walk = Math.max(Math.sqrt(dx*dx+dy2)*minPerCell, lo);
+            if(walk > B) continue;
+            const base = (y*W+x)*4;
+            for(let h=0;h<4;h++){
+              const tv = t[h];
+              if(tv===null || tv>A) continue;
+              const v = tv + walk;
+              if(v < best[base+h]) best[base+h] = v;
+            }
+          }
+        }
+        continue;
+      }
+
+      // 等時圏の無い駅（取得失敗 or データ未着）は従来の直線円で塗る
+      noPoly++;
       const x0 = Math.max(0, Math.floor(cx-Ri)), x1 = Math.min(W-1, Math.ceil(cx+Ri));
       const y0 = Math.max(0, Math.floor(cy-Ri)), y1 = Math.min(H-1, Math.ceil(cy+Ri));
       for(let y=y0; y<=y1; y++){
@@ -272,6 +384,11 @@ const AreaLayer = L.Layer.extend({
         }
       }
     }
+    this._noPoly = WALK ? noPoly : null;
+    const ast = document.getElementById('areastat');
+    if(ast) ast.textContent =
+      (WALK && noPoly>0) ? '面覆盖: '+noPoly+' 站无路网等时圈，用直线圆代替' :
+      (!WALK ? '面覆盖: 路网等时圈载入中…（先以直线圆显示）' : '');
 
     // 格子解像度の ImageData を作り、平滑化を効かせて拡大する
     const img = ctx.createImageData(W,H);
@@ -459,10 +576,11 @@ fetch('reach.json').then(r=>r.json()).then(d=>{
   document.getElementById('note').innerHTML =
     '<b>面覆盖</b>　打开后，每个像素格按「min over 车站（轨道时间 + 步行时间）」'
     +'对四枢纽各算一遍，取最快的那个上色，和站点用同一套逻辑，不做混色。'
-    +'步行速度取 4.8km/h（80m/分）。'
-    +'<b class="warn">直线半径会高估</b>：实际有大川・淀川・阪神高速・铁路本身这些屏障，'
-    +'真实可步行面积大约只有圆盘的 7–8 成，靠河的车站高估更明显。要做准需要引 OSM 步行路网'
-    +'跑等时圈，那是另一个量级的工作。'
+    +'步行时间用 <b>OSM 实际步行路网等时圈</b>（Valhalla 引擎，步速 4.8km/h，'
+    +'2026-08 取得）分 5/10/15/20 分四带——大川・淀川・阪神高速・铁路这些屏障'
+    +'已由路网本身吸收，不再是直线圆盘。帯内用直线时间插值（取 max(直线分, 帯下限)，'
+    +'仍是真值下界）；步行滑块恰为 5/10/15/20 时，边界与路网等时圈严格一致。'
+    +'个别取得失败的站退回直线圆（有的话会显示在面板上）。'
     +'<br><br><b>配色</b>　每站按<b>最快到达的那个枢纽</b>着色，不做混色——红+蓝+绿平均出来是灰色，'
     +'和「不可达」的灰无法区分。可达枢纽的<b>数量</b>改用点的大小表示，'
     +'四枢纽全覆盖再加一圈粗边。'
@@ -522,7 +640,9 @@ document.getElementById('wk').addEventListener('input',()=>{
 document.getElementById('lowfreq').addEventListener('change',redrawAll);
 document.getElementById('areaOn').addEventListener('change',e=>{
   document.getElementById('walkWrap').hidden = !e.target.checked;
-  if(e.target.checked) map.addLayer(areaLayer); else map.removeLayer(areaLayer);
+  if(e.target.checked){ ensureWalk(); map.addLayer(areaLayer); }
+  else { map.removeLayer(areaLayer);
+         document.getElementById('areastat').textContent = ''; }
 });
 // 縮尺が変わったら点の半径を引き直す
 map.on('zoomend', ()=>{ if(DATA) render(); });
