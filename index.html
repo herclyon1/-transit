@@ -67,7 +67,7 @@ html[data-theme=dark] .warn{color:#ff8a80}
 <body>
 <div id="hdr">
   <h1>大阪府 车站可达性图 <span style="color:var(--sub);font-size:11px">v1 · 时间层</span></h1>
-  <div class="sub">色 = 阈值内可达的枢纽集合 · ★=四枢纽 · 点站看四元组与来源</div>
+  <div class="sub">色 = 最快到达的枢纽 · 点大小 = 阈值内可达枢纽数 · 点站看四元组</div>
   <button id="theme" title="切换明暗主题">🌙 暗色</button>
 </div>
 <div id="map"></div>
@@ -141,17 +141,27 @@ for(const [nm,ll] of Object.entries(HUB_LL)){
     iconAnchor:[-11,-2]}),interactive:false}).addTo(map);
 }
 
-function mix(set){
-  if(set.length===0) return null;
-  if(set.length===4) return GOLD;
-  let r=0,g=0,b=0;
-  for(const h of set){const c=HUE[h]; r+=c[0]; g+=c[1]; b+=c[2];}
-  const n=set.length, k = 1 + 0.13*(n-1);
-  return [r/n*k, g/n*k, b/n*k].map(x=>Math.min(255,Math.round(x)));
+// 複数枢纽に届く駅を混色で塗ると識別不能になる。
+// 赤+青+緑を平均すると rgb(133,134,148) ＝ ほぼ灰色で、
+// 「到達不能の灰」と見分けが付かなくなっていた（実際に3枢纽に届く今宮戎が灰色に化けた）。
+// なので色は「最も速く着く枢纽」1つで決め、届く枢纽の数は大きさと輪郭で表す。
+function fastestHub(t){
+  let bi=-1, bv=Infinity;
+  t.forEach((v,i)=>{ if(v!==null && v<bv){ bv=v; bi=i; } });
+  return bi;
 }
 const css = c => 'rgb('+c[0]+','+c[1]+','+c[2]+')';
 
 let DATA=null, layer=L.layerGroup().addTo(map);
+
+// 見た目の半径が小さいと指でもマウスでも押しにくいので、
+// 同じ popup を持つ透明な当たり判定の円を上に重ねる。
+// fillOpacity を 0 にすると SVG の当たり判定自体が消えるので極小値にする。
+function hit(s, t, low, th, r){
+  L.circleMarker([s.lat,s.lon],{radius:Math.max(11, r+5), opacity:0,
+    fillOpacity:0.001, fillColor:'#000'})
+    .bindPopup(popup(s,t,low,th)).addTo(layer);
+}
 
 function render(){
   const th = +document.getElementById('th').value;
@@ -173,23 +183,28 @@ function render(){
       const lowOk = s.t_low.some(x=>x!==null);
       if(!low && noService && lowOk){
         onlyLow++;
-        L.circleMarker([s.lat,s.lon],{radius:3.4,color:acc,weight:1.5,
+        L.circleMarker([s.lat,s.lon],{radius:3.6,color:acc,weight:1.6,
           fillColor:dim,fillOpacity:0.22,dashArray:'2,2'})
           .bindPopup(popup(s,t,low,th)).addTo(layer);
+        hit(s, t, low, th, 3.6);
       }else{
-        L.circleMarker([s.lat,s.lon],{radius:2.4,color:dimbd,weight:0.8,
+        L.circleMarker([s.lat,s.lon],{radius:2.6,color:dimbd,weight:0.8,
           fillColor:dim,fillOpacity:0.85}).bindPopup(popup(s,t,low,th)).addTo(layer);
+        hit(s, t, low, th, 2.6);
       }
       continue;
     }
     reach++; if(set.length===4) all4++;
     const full = set.length===4;
+    const fh = fastestHub(t);
+    const r = inOsaka ? (4.2 + set.length*0.9) : (3.2 + set.length*0.6);
     L.circleMarker([s.lat,s.lon],{
-      radius: inOsaka ? (3.4 + set.length*0.75) : (2.6 + set.length*0.5),
-      color: full ? ring : (THEME==='light' ? '#ffffffcc' : '#000'),
-      weight: full ? 1.6 : 1,
-      fillColor:css(mix(set)), fillOpacity: inOsaka?0.95:0.55
+      radius: r,
+      color: full ? ring : (THEME==='light' ? '#ffffffcc' : '#00000099'),
+      weight: full ? 2.2 : 1,
+      fillColor: css(HUE[HUBS[fh]]), fillOpacity: inOsaka?0.95:0.55
     }).bindPopup(popup(s,t,low,th)).addTo(layer);
+    hit(s, t, low, th, r);
   }
   document.getElementById('stat').innerHTML =
     `阈值内可达 <b>${reach}</b> 站 · 四枢纽全覆盖 <b>${all4}</b> 站`
@@ -240,8 +255,10 @@ function buildLegend(){
       + (muted?' style="color:'+cssvar('--sub')+'"':'') + '>'+txt+'</span>';
     lg.appendChild(r);
   };
-  HUBS.forEach(h=>add('background:'+css(HUE[h]), h));
-  add('background:'+css(GOLD)+';border:2px solid '+cssvar('--ring'), '四枢纽全覆盖');
+  HUBS.forEach(h=>add('background:'+css(HUE[h]), h+' 最快'));
+  add('background:'+css(HUE['難波'])+';border:2.5px solid '+cssvar('--ring'),
+      '粗白/黑边 = 四枢纽全覆盖');
+  add('background:'+cssvar('--sub')+';width:15px;height:15px', '点越大 = 阈值内可达枢纽越多');
   add('background:'+cssvar('--dim')+';border-color:'+cssvar('--dimbd'), '阈值内不可达', 1);
   add('background:transparent;border:2px dashed '+cssvar('--acc'), '仅低频线可达 ⚡', 1);
 }
@@ -253,7 +270,10 @@ fetch('reach.json').then(r=>r.json()).then(d=>{
   for(const s of d.stations) for(const p of s.prov) if(p){cnt[p]++;tot++;}
   const pct=k=>tot? (100*cnt[k]/tot).toFixed(0) : 0;
   document.getElementById('note').innerHTML =
-    '<b>精度</b>　实测 '+pct('measured')+'% ／ 锚定 '+pct('anchored')+'% ／ 借用估算 '+pct('borrowed')+'%'
+    '<b>配色</b>　每站按<b>最快到达的那个枢纽</b>着色，不做混色——红+蓝+绿平均出来是灰色，'
+    +'和「不可达」的灰无法区分。可达枢纽的<b>数量</b>改用点的大小表示，'
+    +'四枢纽全覆盖再加一圈粗边。'
+    +'<br><br><b>精度</b>　实测 '+pct('measured')+'% ／ 锚定 '+pct('anchored')+'% ／ 借用估算 '+pct('borrowed')+'%'
     +'<br>实测=Osaka Metro 官方PDF时刻表的逐区间时分。锚定=该线该等级有实测所要时间反解速度。'
     +'借用=同等级中位数，误差可能较大。<b>无独立真值校准，误差为自我交叉验证估计。</b>'
     +'<br><br><b>虚线圈的含义</b>　这些站没有日中≥3本/h 的线，不是「远」而是「班次稀」。'
