@@ -84,19 +84,76 @@ def project(poly, acc, lat, lon):
     return best
 
 
-def along_km(polys, stops):
-    """停車駅列 → 駅間距離km列。複数セグメントに割れている場合は駅ごとに最良のセグメントを選ぶ。"""
+def repair_order(stops):
+    """メンバー順が壊れている停車駅列を検出して並べ直す。
+
+    OSM の relation はメンバー順が正しいとは限らない
+    （実測: 阪堺線の逆方向 relation #9603732 は 浜寺駅前 の次が 新今宮駅前、
+    その次が 住吉 と飛ぶ）。複線が平行wayで引かれている線では幾何を1本に繋げないので、
+    折れ線への射影ではなく駅どうしの距離だけで判定する。
+
+    判定は「隣接駅間距離の総和」で行う。正しい並びなら総和は路線の実延長に近く、
+    順序が壊れていると行ったり来たりで総和が膨らむ。
+    駅間の飛びの大きさでは判定できない —— 優等列車は正しい並びでも大きく飛ぶ
+    （のぞみの 名古屋→新横浜 は 252km だが順序は正しい）。
+    修復は最遠の駅対の一方から最近傍を辿る。線形の路線ならこれで復元できる。
+    """
+    if len(stops) < 4:
+        return stops, False
+
+    def total(seq):
+        return sum(meters(a["lat"], a["lon"], b["lat"], b["lon"]) for a, b in zip(seq, seq[1:]))
+
+    # 最遠の駅対を端点にする
+    far, pair = -1, (0, 0)
+    for i, a in enumerate(stops):
+        for j in range(i + 1, len(stops)):
+            b = stops[j]
+            d = meters(a["lat"], a["lon"], b["lat"], b["lon"])
+            if d > far:
+                far, pair = d, (i, j)
+    cur = pair[0]
+    rest = set(range(len(stops))) - {cur}
+    order = [cur]
+    while rest:
+        a = stops[cur]
+        cur = min(rest, key=lambda k: meters(a["lat"], a["lon"], stops[k]["lat"], stops[k]["lon"]))
+        rest.discard(cur)
+        order.append(cur)
+    fixed = [stops[i] for i in order]
+    # 元の並びが最近傍順より3割以上長ければ、行ったり来たりしている＝壊れている
+    if total(stops) <= 1.3 * total(fixed):
+        return stops, False
+    return fixed, True
+
+
+def order_and_measure(polys, stops):
+    """停車駅列を沿線位置で検証し、必要なら並べ直して駅間距離km列を返す。
+
+    OSM の relation はメンバー順が正しいとは限らない
+    （実測: 阪堺線の逆方向 relation #9603732 は新今宮駅前が2番目に来るなど順序が壊れている）。
+    駅を沿線ポリラインに射影した位置が単調でなければ、射影順に並べ直す。
+    戻り値: (stops, seg_km, repaired)
+    """
     prepared = [(p, cumulative(p)) for p in polys if len(p) >= 2]
     if not prepared:
-        return None
+        return stops, None, False
     placed = []
     for s in stops:
-        cands = []
-        for si, (poly, acc) in enumerate(prepared):
-            d, off = project(poly, acc, s["lat"], s["lon"])
-            cands.append((off, si, d))
-        cands.sort()
+        cands = sorted((project(poly, acc, s["lat"], s["lon"])[1], si,
+                        project(poly, acc, s["lat"], s["lon"])[0])
+                       for si, (poly, acc) in enumerate(prepared))
         placed.append(cands[0])  # (離隔, セグ番号, 沿線位置)
+
+    stops, repaired = repair_order(stops)
+    if repaired:
+        placed = []
+        for s in stops:
+            cands = sorted((project(poly, acc, s["lat"], s["lon"])[1], si,
+                            project(poly, acc, s["lat"], s["lon"])[0])
+                           for si, (poly, acc) in enumerate(prepared))
+            placed.append(cands[0])
+
     out = []
     for (o1, s1, d1), (o2, s2, d2), a, b in zip(placed, placed[1:], stops, stops[1:]):
         gc = meters(a["lat"], a["lon"], b["lat"], b["lon"])
@@ -108,7 +165,7 @@ def along_km(polys, stops):
         else:
             km = gc * 1.08 / 1000.0
         out.append(round(km, 4))
-    return out
+    return stops, out, repaired
 
 
 # ---------------------------------------------------------------- 名前の正規化
@@ -327,6 +384,9 @@ EXPECTED_UNCOVERED = {
 
 STOP_ROLES = {"stop", "stop_entry_only", "stop_exit_only", "station"}
 
+# メンバー順が壊れていて沿線位置で並べ直した relation の記録（自检で報告する）
+REPAIRED = []
+
 # OSM の relation 自体が停車駅を取りこぼしている箇所の人工補丁。
 # HANDOFF の三段 fallback（operatorタグ→KSJ2:LIN→人工補丁）の三段目にあたる。
 # 実測: 阪堺線 relation に 今池停留場 が入っていない（新今宮駅前と今船の間）。
@@ -334,6 +394,44 @@ STOP_PATCHES = [
     {"match": "阪堺線", "insert": "今池", "after": "新今宮駅前", "before": "今船",
      "reason": "OSM relation に停留場が欠落。v0 の stations_final.json には存在する"},
 ]
+
+
+# 1本の relation でも、実際の運行系統が区間で別物になっている線を割る。
+# 割ると line_key が別になるので、分割駅で乗換罰時が入る ＝ 実際に電車を乗り換えるので正しい。
+SERVICE_SPLITS = [
+    {"match": "阪堺線", "at": "住吉",
+     "reason": "恵美須町発着は全て我孫子道止まりで昼間28分間隔。一方 住吉以南は上町線からの"
+               "天王寺駅前系統(昼間6分間隔)が流入する。1本の系統として扱うと住吉以南の頻度を"
+               "著しく過小評価する"},
+]
+
+
+def split_pattern(pat):
+    """SERVICE_SPLITS に該当する服务型を区間ごとに割って返す。該当しなければそのまま1件。"""
+    for sp in SERVICE_SPLITS:
+        if sp["match"] not in pat["name"]:
+            continue
+        names = [norm_name(n) for n in pat["stop_names"]]
+        at = norm_name(sp["at"])
+        if at not in names:
+            continue
+        i = names.index(at)
+        if i == 0 or i == len(names) - 1:
+            continue  # 端点で割っても意味がない
+        out = []
+        for lo, hi in ((0, i + 1), (i, len(names))):  # 分割駅は両区間に入れる
+            sub = dict(pat)
+            sub["stops"] = pat["stops"][lo:hi]
+            sub["stop_names"] = pat["stop_names"][lo:hi]
+            sub["seg_km"] = pat["seg_km"][lo:hi - 1]
+            # 上下二方向で同じラベルになるよう端点名をソートして付ける
+            ends = sorted([pat["stop_names"][lo], pat["stop_names"][hi - 1]])
+            seg_label = f"({ends[0]}〜{ends[1]})"
+            sub["line_key"] = pat["line_key"] + seg_label
+            sub["split_reason"] = sp["reason"]
+            out.append(sub)
+        return out
+    return [pat]
 
 
 def apply_stop_patches(rel_name, stops, reg):
@@ -369,8 +467,15 @@ def relation_patterns(reg):
         if not stop_refs:
             stop_refs = [m["ref"] for m in members if m["type"] == "node" and not m["role"]]
         stops = [reg[i] for i in stop_refs if i in reg]
-        # 連続重複を潰す。同一停留場に別ノードが二つ張られている例があるので名前でも見る
-        # （実測: 阪堺線の 住吉・石津北 が連続二重に入る）。
+        if len(stops) < 2:
+            continue
+        geoms = [ways[m["ref"]]["geometry"] for m in members
+                 if m["type"] == "way" and not m["role"]
+                 and m["ref"] in ways and ways[m["ref"]].get("geometry")]
+        polys = stitch(geoms) if geoms else []
+        # まず沿線位置で順序を検証・修復してから重複を潰す
+        # （順序が壊れていると同一駅の二重ノードが離れた位置に現れて潰せない）
+        stops, _, repaired = order_and_measure(polys, stops)
         dedup = []
         for s in stops:
             if dedup and (dedup[-1]["osm_id"] == s["osm_id"]
@@ -380,13 +485,12 @@ def relation_patterns(reg):
         dedup = apply_stop_patches(t.get("name", ""), dedup, reg)
         if len(dedup) < 2:
             continue
-        geoms = [ways[m["ref"]]["geometry"] for m in members
-                 if m["type"] == "way" and not m["role"]
-                 and m["ref"] in ways and ways[m["ref"]].get("geometry")]
-        seg = along_km(stitch(geoms), dedup) if geoms else None
+        dedup, seg, _ = order_and_measure(polys, dedup)
         if seg is None:
             seg = [round(meters(a["lat"], a["lon"], b["lat"], b["lon"]) * 1.08 / 1000, 4)
                    for a, b in zip(dedup, dedup[1:])]
+        if repaired:
+            REPAIRED.append(f"{t.get('name','')} (#{r['id']})")
         cls, kw, inferred = service_class(t.get("name", ""), t.get("route", ""))
         out.append({
             "src": f"osm:relation/{r['id']}",
@@ -400,6 +504,7 @@ def relation_patterns(reg):
             "stops": [s["osm_id"] for s in dedup],
             "stop_names": [s["name"] for s in dedup],
             "seg_km": seg,
+            "order_repaired": repaired,
         })
     return out
 
@@ -697,8 +802,9 @@ def main():
     fb = fallback_patterns(reg, covered_ids)
     for p in fb:
         print(f"fallback: {p['name']} 駅数={len(p['stops'])}")
-    pats = dedupe(pats + fb)
-    print(f"重複除去後: {len(pats)}")
+    pats = [q for p in (pats + fb) for q in split_pattern(p)]
+    pats = dedupe(pats)
+    print(f"区間分割・重複除去後: {len(pats)}")
 
     canonical_stations(reg)
     for p in pats:
