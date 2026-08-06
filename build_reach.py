@@ -54,6 +54,29 @@ def is_through(k1, k2):
     return (a, b) in THROUGH or (b, a) in THROUGH
 
 
+def osaka_polygons():
+    """japan.geojson から大阪府の多角形群（[[ [lon,lat],... ], ...]）を取り出す"""
+    g = json.load(open(os.path.join(HERE, "japan.geojson")))
+    for f in g["features"]:
+        if f["properties"].get("nam_ja") == "大阪府":
+            geom = f["geometry"]
+            polys = [geom["coordinates"]] if geom["type"] == "Polygon" else geom["coordinates"]
+            return [ring for poly in polys for ring in poly]
+    raise RuntimeError("大阪府 not in japan.geojson")
+
+
+def pip(rings, lat, lon):
+    """even-odd の点包含。穴も外周も同列に数える"""
+    inside = False
+    for r in rings:
+        for i in range(len(r)):
+            x1, y1 = r[i - 1]
+            x2, y2 = r[i]
+            if (y1 > lat) != (y2 > lat) and lon < (x1 - x2) * (lat - y2) / (y1 - y2) + x2:
+                inside = not inside
+    return inside
+
+
 def build_graph(data, speeds, include_b):
     """(隣接リスト, 節点->駅, 駅->節点集合) を返す。節点は (station_id, line_key)。"""
     reg = {s["osm_id"]: s for s in data["stations"]}
@@ -294,7 +317,12 @@ def main():
                 sid_ops[reg[i]["station_id"]].add(p_["operator"])
     # 抽出bboxの外（東海道本線が関東まで伸びている等）は地図の対象外
     BB = (34.27, 135.09, 35.06, 135.78)
+    # 「府内かどうか」は v0 リスト所属ではなく府境界の点包含で決める。
+    # v0 は阪堺の停留場を取り零しているので、in_v0 を府内フラグに流用すると
+    # 天王寺駅前が「府外」表示になる誤標になっていた。
+    opolys = osaka_polygons()
     rows = []
+    flips = 0
     for sid, (lat, lon, nm, grp) in sorted(sid_pos.items()):
         if not (BB[0] <= lat <= BB[2] and BB[1] <= lon <= BB[3]):
             continue
@@ -304,9 +332,12 @@ def main():
             continue
         if min([x for x in tl if x is not None]) > 120:
             continue
+        in_osaka = pip(opolys, lat, lon)
+        if in_osaka != bool(grp):
+            flips += 1
         rows.append({
             "station_id": sid, "name": nm, "lat": lat, "lon": lon, "grp": grp,
-            "in_v0": bool(grp), "ops": sorted(sid_ops.get(sid, ())),
+            "in_osaka": in_osaka, "ops": sorted(sid_ops.get(sid, ())),
             "t_default": [None if x is None else round(x, 1) for x in td],
             "t_low": [None if x is None else round(x, 1) for x in tl],
             "prov": [PROV_NAME[pa[h][sid]] if sid in pa[h] else None for h in IG.HUBS],
@@ -316,7 +347,9 @@ def main():
     path = os.path.join(HERE, "reach.json")
     with open(path, "w") as f:
         json.dump({"hubs": IG.HUBS, "stations": rows}, f, ensure_ascii=False)
-    print(f"\n{len(rows)} 駅 -> {path}")
+    n_in = sum(1 for r in rows if r["in_osaka"])
+    print(f"\n{len(rows)} 駅 (府内 {n_in} / 府外 {len(rows)-n_in}, "
+          f"v0旗と食い違い {flips} 駅) -> {path}")
     return ok
 
 

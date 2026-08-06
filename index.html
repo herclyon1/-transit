@@ -3,6 +3,8 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="dark light">
+<meta name="theme-color" content="#0e0f12">
 <title>大阪府 车站可达性图 v1</title>
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
@@ -10,11 +12,13 @@
 :root{--bg:#0e0f12;--fg:#e8e8e8;--sub:#9aa0a8;--line:#2a2d33;--panel:#16181df2;
   --panelbd:#333;--pop:#1c1f25;--popfg:#eee;--popdim:#9aa0a8;--acc:#ffd54f;
   --track:#fff;--trackop:0.30;--dim:#5b626c;--dimbd:#3a3f47;--ring:#fff;
-  --shadow:0 1px 3px #000;--btn:#22252c}
+  --shadow:0 1px 3px #000;--btn:#22252c;--accfg:#1b1500}
+/* 浅色の強調色は暗色の金をそのまま暗くすると土色に濁る。
+   琥珀(#b45309, 白地でコントラスト4.5:1)に振り、上に載せる文字は白にする */
 html[data-theme=light]{--bg:#f7f7f9;--fg:#1b1e23;--sub:#5a626c;--line:#d9dde3;
   --panel:#fffffff2;--panelbd:#c9ced6;--pop:#fff;--popfg:#1b1e23;--popdim:#6b7280;
-  --acc:#a37f00;--track:#6b7480;--trackop:0.55;--dim:#aab1ba;--dimbd:#868d96;
-  --ring:#1b1e23;--shadow:0 1px 3px #0003;--btn:#eef0f3}
+  --acc:#b45309;--accfg:#fff;--track:#6b7480;--trackop:0.55;--dim:#aab1ba;
+  --dimbd:#868d96;--ring:#1b1e23;--shadow:0 1px 3px #0003;--btn:#eef0f3}
 html,body{margin:0;height:100%;background:var(--bg);color:var(--fg);
   font-family:'Noto Sans CJK SC','Hiragino Sans','Yu Gothic',sans-serif}
 #hdr{padding:8px 12px 6px;background:var(--bg);border-bottom:1px solid var(--line);
@@ -34,7 +38,7 @@ html[data-theme=light] .hubmk{border-color:#ffffffcc;box-shadow:0 0 5px #0004}
 /* 可达数量筛选のセグメント */
 #minhub{display:flex;gap:4px;margin:2px 0 3px}
 #minhub button{flex:1;padding:2.5px 0;font-size:11.5px;border-radius:6px}
-#minhub button.on{background:var(--acc);color:#1b1500;border-color:var(--acc);
+#minhub button.on{background:var(--acc);color:var(--accfg);border-color:var(--acc);
   font-weight:700}
 .leaflet-popup-content-wrapper,.leaflet-popup-tip{background:var(--pop);color:var(--popfg)}
 .leaflet-popup-content{margin:9px 11px;font-size:13px;line-height:1.5}
@@ -79,7 +83,7 @@ html[data-theme=dark] .warn{color:#ff8a80}
 <body>
 <div id="hdr">
   <h1>大阪府 车站可达性图 <span style="color:var(--sub);font-size:11px">v1 · 时间层</span></h1>
-  <div class="sub">色 = 最快枢纽 · 点大小 = 可达枢纽数 · 点车站看四元组 · <b>点地图任意处查该地点</b></div>
+  <div class="sub">色 = 最快枢纽 · 点大小 = 可达枢纽数 · 点车站看四元组 · <b>长按任意处查该地点</b></div>
   <button id="theme" title="切换明暗主题">🌙 暗色</button>
 </div>
 <div id="map"></div>
@@ -128,8 +132,23 @@ const PALETTE = {
   light: {'梅田':[255,41,41], '難波':[10,128,255], '天王寺':[52,149,57],
           '京橋':[222,10,255], GOLD:[163,127,0]},
 };
-let THEME = (localStorage.getItem('theme') === 'light') ? 'light' : 'dark';
-let HUE = PALETTE[THEME], GOLD = HUE.GOLD;
+// テーマは既定で OS 設定に追随（prefers-color-scheme）。ボタンで
+// 自動→暗→浅 を巡回し、明示指定だけ localStorage に残す。
+// 旧バージョンの 'theme' キーは明示指定として引き継ぐ。
+const sysDark = window.matchMedia('(prefers-color-scheme: dark)');
+let THEME_MODE = localStorage.getItem('themeMode')
+              || localStorage.getItem('theme') || 'auto';
+if(!['auto','dark','light'].includes(THEME_MODE)) THEME_MODE = 'auto';
+function effTheme(){
+  return THEME_MODE === 'auto' ? (sysDark.matches ? 'dark' : 'light') : THEME_MODE;
+}
+let THEME = effTheme();
+let HUE = PALETTE[THEME];
+sysDark.addEventListener('change', ()=>{
+  if(THEME_MODE !== 'auto') return;
+  THEME = effTheme();
+  applyTheme();
+});
 const HUB_LL = {'梅田':[34.7025,135.4959],'難波':[34.6636,135.5008],
                 '天王寺':[34.6465,135.5140],'京橋':[34.6968,135.5340]};
 const PROV_LABEL = {measured:'实测', anchored:'锚定', borrowed:'借用估算'};
@@ -546,7 +565,7 @@ function render(){
   for(const s of DATA.stations){
     const t = low ? s.t_low : s.t_default;
     const set = HUBS.filter((h,i)=> t[i]!==null && t[i]<=th);
-    const inOsaka = s.in_v0;
+    const inOsaka = s.in_osaka;
     if(set.length===0){
       if(!inOsaka || MINHUBS>1) continue;
       // 既定ビューでどの枢纽にも届かない駅のうち、A層の系統が一本も無い駅は
@@ -619,7 +638,7 @@ function popup(s,t,low,th){
   const fg = cssvar('--popfg'), dim = cssvar('--popdim');
   let h = '<b>'+s.name+'</b>';
   if(s.ops && s.ops.length) h += ' <span style="color:'+dim+'">'+s.ops.join('/')+'</span>';
-  if(!s.in_v0) h += ' <span style="color:'+dim+'">(府外缓冲)</span>';
+  if(!s.in_osaka) h += ' <span style="color:'+dim+'">(府外)</span>';
   h += '<table style="margin-top:5px;border-collapse:collapse">';
   let mn=null;
   HUBS.forEach((hub,i)=>{
@@ -772,9 +791,24 @@ function pointQuery(ll){
     if(!WALK) h += '<div style="margin-top:4px;color:'+dim+';font-size:11px">'
                  + '路网等时圈载入中，本次为直线估算</div>';
   }
-  L.popup({maxWidth:280}).setLatLng(ll).setContent(h).openOn(map);
+  L.popup({maxWidth:280, offset:[0,-26]}).setLatLng(ll).setContent(h).openOn(map);
 }
-map.on('click', e=>{ if(DATA) pointQuery(e.latlng); });
+// 長押し(モバイル)/右クリック(PC)でピンを立てて調べる。普通のタップは
+// 地図操作・駅ポップアップと衝突するので使わない —— 一般の地図アプリと同じ作法。
+// Leaflet はタッチ端末の長押しを contextmenu として発火する。
+const pinIcon = L.divIcon({className:'', iconSize:[26,34], iconAnchor:[13,32],
+  html:'<svg width="26" height="34" viewBox="0 0 26 34">'
+      +'<path d="M13 1C6.4 1 1 6.4 1 13c0 8.5 12 20 12 20s12-11.5 12-20C25 6.4 19.6 1 13 1z"'
+      +' fill="#e5484d" stroke="#00000066" stroke-width="1.5"/>'
+      +'<circle cx="13" cy="13" r="4.5" fill="#fff"/></svg>'});
+let pin = null;
+map.on('contextmenu', e=>{
+  if(!DATA) return;
+  if(pin) map.removeLayer(pin);
+  pin = L.marker(e.latlng, {icon: pinIcon, interactive:false}).addTo(map);
+  pointQuery(e.latlng);
+});
+map.on('popupclose', ()=>{ if(pin){ map.removeLayer(pin); pin = null; } });
 
 const info=document.getElementById('info'), more=document.getElementById('more');
 function setInfo(open){
@@ -790,18 +824,23 @@ setInfo(saved===null ? window.innerWidth>=900 : saved==='1');
 
 function applyTheme(){
   document.documentElement.setAttribute('data-theme', THEME);
-  HUE = PALETTE[THEME]; GOLD = HUE.GOLD;
-  document.getElementById('theme').textContent = THEME==='dark' ? '🌙 暗色' : '☀️ 浅色';
-  setTiles(); redrawLines();
+  HUE = PALETTE[THEME];
+  document.getElementById('theme').textContent =
+    THEME_MODE==='auto' ? '🌗 自动' : (THEME==='dark' ? '🌙 暗色' : '☀️ 浅色');
+  // モバイルのアドレスバー色も追随させる
+  document.querySelector('meta[name=theme-color]')
+    .setAttribute('content', THEME==='dark' ? '#0e0f12' : '#f7f7f9');
+  setTiles(); redrawLines(); drawHubs();
   if(DATA){ buildLegend(); render(); }
 }
 document.getElementById('theme').addEventListener('click',()=>{
-  THEME = (THEME==='dark') ? 'light' : 'dark';
-  localStorage.setItem('theme', THEME);
+  THEME_MODE = THEME_MODE==='auto' ? 'dark' : (THEME_MODE==='dark' ? 'light' : 'auto');
+  localStorage.setItem('themeMode', THEME_MODE);
+  localStorage.removeItem('theme');
+  THEME = effTheme();
   applyTheme();
 });
 applyTheme();
-drawHubs();
 function redrawAll(){ if(!DATA) return; render(); if(map.hasLayer(areaLayer)) areaLayer.draw(); }
 document.getElementById('th').addEventListener('input',()=>{
   document.getElementById('thv').textContent =
