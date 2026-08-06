@@ -143,9 +143,10 @@ CLASS_TOKENS = [
     ("ライナー", ["ライナー"]),
     ("快速急行", ["快速急行"]),
     ("区間急行", ["区間急行", "区急"]),
-    ("急行", ["空港急行", "急行"]),
+    # 準急行 が 急行 に食われないよう、準急系を急行より先に置く
     ("区間準急", ["区間準急"]),
     ("準急", ["準急行", "準急"]),
+    ("急行", ["空港急行", "急行"]),
     ("快速", ["直通快速", "区間快速", "快速"]),
     ("普通", ["普通", "各駅停車", "各停"]),
 ]
@@ -207,7 +208,9 @@ def canon_operator(operator, name=""):
     operator タグは同じ路線でも relation ごとに揺れる（実測: 泉北線の上り/下りが
     南海電気鉄道 と 泉北高速鉄道 に割れていた）。路線名の方が識別子として安定している。
     """
-    n = unicodedata.normalize("NFKC", name or "")
+    # 方向表記のカッコは先に落とす。落とさないと
+    # 「Osaka Metro千日前線 (野田阪神 => 南巽)」の駅名「野田阪神」が事業者 阪神 と誤判定される。
+    n = _PAREN.sub("", unicodedata.normalize("NFKC", name or ""))
     for k, v in _OP_FROM_NAME:
         if k in n:
             return v
@@ -577,6 +580,70 @@ def dedupe(patterns):
     return list(best.values())
 
 
+def canonical_stations(reg):
+    """OSM の停車ノードを物理駅に束ねて station_id を振る。
+
+    同じ物理駅に複数の停車ノードが張られている（方向別、事業者別、系統別）。
+    束ねないと「サンダーバードの大阪駅」と「東海道本線の大阪駅」が別ノードになり、
+    グラフが繋がらない。同名かつ近接（単連結600m）なら同一駅とみなす。
+    駅名が同じでも離れていれば別駅（例: 各地の同名駅）。
+    """
+    groups = defaultdict(list)
+    for s in reg.values():
+        groups[s["name_norm"]].append(s)
+    next_id = 0
+    for name, members in groups.items():
+        clusters = []  # [[station,...], ...]
+        for s in sorted(members, key=lambda x: (x["lat"], x["lon"])):
+            hit = None
+            for cl in clusters:
+                if any(meters(s["lat"], s["lon"], t["lat"], t["lon"]) < 600 for t in cl):
+                    hit = cl
+                    break
+            if hit is None:
+                clusters.append([s])
+            else:
+                hit.append(s)
+        for cl in clusters:
+            sid = f"S{next_id:04d}"
+            next_id += 1
+            lat = sum(t["lat"] for t in cl) / len(cl)
+            lon = sum(t["lon"] for t in cl) / len(cl)
+            for t in cl:
+                t["station_id"] = sid
+                t["station_lat"] = round(lat, 6)
+                t["station_lon"] = round(lon, 6)
+    print(f"物理駅への集約: {len(reg)} ノード → {next_id} 駅")
+    return next_id
+
+
+def annotate_levels(reg, pats):
+    """service_levels.py の分級表を各服务型に貼り、大阪府に掛かる未登録を報告する。"""
+    from service_levels import classify
+    v0 = json.load(open(os.path.join(HERE, "stations_final.json")))
+    osaka = set()
+    for s in reg.values():
+        for t in v0:
+            if (abs(t["lat"] - s["lat"]) < 0.004 and abs(t["lon"] - s["lon"]) < 0.005
+                    and meters(t["lat"], t["lon"], s["lat"], s["lon"]) < 300):
+                osaka.add(s["osm_id"])
+                break
+    miss, tally = [], defaultdict(int)
+    for p in pats:
+        layer, hw, role, fare, conf, src, why = classify(p["line_key"], p["service_class"])
+        p.update(layer=layer, headway_daytime=hw, service_role=role, fare_extra=fare,
+                 headway_conf=conf, headway_src=src, role_reason=why)
+        p["in_osaka"] = any(i in osaka for i in p["stops"])
+        if p["in_osaka"]:
+            tally[layer] += 1
+            if layer == "unclassified":
+                miss.append(p)
+    print("\n[分級] 大阪府に掛かる服务型の層内訳:", dict(tally))
+    for p in miss:
+        print(f"    ★未登録: {p['line_key']}|{p['service_class']} — {p['name'][:44]}")
+    return osaka
+
+
 def selfcheck(reg, pats, unmatched):
     """計画の検証項目1: 513站の被覆と孤立、線ごとの服务型数。
 
@@ -632,6 +699,11 @@ def main():
         print(f"fallback: {p['name']} 駅数={len(p['stops'])}")
     pats = dedupe(pats + fb)
     print(f"重複除去後: {len(pats)}")
+
+    canonical_stations(reg)
+    for p in pats:
+        p["station_ids"] = [reg[i]["station_id"] for i in p["stops"] if i in reg]
+    annotate_levels(reg, pats)
 
     covered_ids = {i for p in pats for i in p["stops"]}
     matched, unmatched = link_to_v0(reg, covered_ids)
