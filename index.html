@@ -219,18 +219,14 @@ const AreaLayer = L.Layer.extend({
     const dpr = this._c.width / size.x;
     // 格子はデバイスpx基準で決める。CSS px 基準にすると高DPRの端末で
     // 1セルが6〜9デバイスpxに膨らみ、輪郭がぼやけて見える。
-    // 半径がセル数で大きくなりすぎると重くなるので上限側だけ粗くする。
     const RdevRaw = (B*WALK_M_PER_MIN)/mPerPx*dpr;
-    const CELLdev = Math.max(2, Math.min(6, Math.ceil(RdevRaw/90)));
-    const W = Math.ceil(this._c.width/CELLdev), H = Math.ceil(this._c.height/CELLdev);
-    const Rc  = RdevRaw/CELLdev;                      // 徒歩圏(セル)
-    if(Rc < 0.4) return;
-    const mPerDev = mPerPx/dpr;
-    const minPerCell = (CELLdev*mPerDev)/WALK_M_PER_MIN;  // 1セル進むのに掛かる徒歩分
 
-    const best = new Float32Array(W*H*4).fill(Infinity);
+    // 画面に載る有効駅を先に数える。格子の粗さを半径だけで決めると、
+    // 拡大して視野に数駅しか残らないときまで粗い格子＋強ぼかしになり輪郭が滲む。
+    // 実際の重さは「スタンプ更新数 + argmin走査数」なので、その合計が
+    // 予算内に収まる最細の格子を選ぶ。
     const margin = RdevRaw/dpr + 20;
-    const Rc2 = Rc*Rc, Ri = Math.ceil(Rc);
+    const acts = [];
     for(const s of DATA.stations){
       const t = low ? s.t_low : s.t_default;
       let any=false;
@@ -238,6 +234,25 @@ const AreaLayer = L.Layer.extend({
       if(!any) continue;
       const p = map.latLngToContainerPoint([s.lat,s.lon]);
       if(p.x < -margin || p.y < -margin || p.x > size.x+margin || p.y > size.y+margin) continue;
+      acts.push({p,t});
+    }
+    if(!acts.length) return;
+    const BUDGET = 2.5e6;
+    let CELLdev = 6;
+    for(let c=1;c<=6;c++){
+      const w = Math.ceil(this._c.width/c), h = Math.ceil(this._c.height/c);
+      const rc = RdevRaw/c;
+      if(acts.length*Math.min(Math.PI*rc*rc, w*h) + w*h <= BUDGET){ CELLdev=c; break; }
+    }
+    const W = Math.ceil(this._c.width/CELLdev), H = Math.ceil(this._c.height/CELLdev);
+    const Rc  = RdevRaw/CELLdev;                      // 徒歩圏(セル)
+    if(Rc < 0.4) return;
+    const mPerDev = mPerPx/dpr;
+    const minPerCell = (CELLdev*mPerDev)/WALK_M_PER_MIN;  // 1セル進むのに掛かる徒歩分
+
+    const best = new Float32Array(W*H*4).fill(Infinity);
+    const Rc2 = Rc*Rc, Ri = Math.ceil(Rc);
+    for(const {p,t} of acts){
       const cx = p.x*dpr/CELLdev, cy = p.y*dpr/CELLdev;
       const x0 = Math.max(0, Math.floor(cx-Ri)), x1 = Math.min(W-1, Math.ceil(cx+Ri));
       const y0 = Math.max(0, Math.floor(cy-Ri)), y1 = Math.min(H-1, Math.ceil(cy+Ri));
@@ -298,11 +313,12 @@ function hit(s, t, low, th, r){
 }
 
 // 縮小すると点が相対的に大きくなって団子になるので、zoom に応じて縮める。
-// 基準は初期表示の zoom 11。1段縮小ごとに 0.78 倍、拡大側は 1.7 倍で頭打ち。
-// 拡大側は 1.0 で頭打ちにする。拡大するほど点が育つと街区が点で埋まって読めない。
+// 基準は初期表示の zoom 11。1段縮小ごとに 0.72 倍（実測で 0.80 では
+// zoom 9 がまだ団子だった）。拡大側は 1.0 で頭打ちにする。
+// 拡大するほど点が育つと街区が点で埋まって読めない。
 const BASE_ZOOM = 11;
 function zoomScale(){
-  return Math.max(0.34, Math.min(1.0, Math.pow(0.80, BASE_ZOOM - map.getZoom())));
+  return Math.max(0.22, Math.min(1.0, Math.pow(0.72, BASE_ZOOM - map.getZoom())));
 }
 
 function render(){
@@ -313,7 +329,11 @@ function render(){
   const dim = cssvar('--dim'), dimbd = cssvar('--dimbd'), acc = cssvar('--acc');
   const ring = cssvar('--ring');
   const zs = zoomScale();
+  // 縮小時は枠線も細くする。2.2px の白枠は zoom 9 では点本体より太く、
+  // 団子の主因の一つだった
+  const fullW = Math.max(1.1, 2.2*zs), normW = Math.max(0.5, 1.0*zs);
   let reach=0, all4=0, onlyLow=0;
+  const draws = [];   // {s,t,key,rank, mk:()=>marker, r}
   for(const s of DATA.stations){
     const t = low ? s.t_low : s.t_default;
     const set = HUBS.filter((h,i)=> t[i]!==null && t[i]<=th);
@@ -327,15 +347,14 @@ function render(){
       if(!low && noService && lowOk){
         onlyLow++;
         const rr = Math.max(2.0, 3.0*zs);
-        L.circleMarker([s.lat,s.lon],{radius:rr,color:acc,weight:1.6,
-          fillColor:dim,fillOpacity:0.22,dashArray:'2,2'})
-          .bindPopup(popup(s,t,low,th)).addTo(layer);
-        hit(s, t, low, th, rr);
+        draws.push({s,t,cls:'lowonly',rank:0,r:rr,mk:()=>
+          L.circleMarker([s.lat,s.lon],{radius:rr,color:acc,weight:Math.max(0.9,1.6*zs),
+            fillColor:dim,fillOpacity:0.22,dashArray:'2,2'})});
       }else{
         const rr = Math.max(1.4, 2.2*zs);
-        L.circleMarker([s.lat,s.lon],{radius:rr,color:dimbd,weight:0.8,
-          fillColor:dim,fillOpacity:0.85}).bindPopup(popup(s,t,low,th)).addTo(layer);
-        hit(s, t, low, th, rr);
+        draws.push({s,t,cls:'dim',rank:0,r:rr,mk:()=>
+          L.circleMarker([s.lat,s.lon],{radius:rr,color:dimbd,weight:Math.max(0.4,0.8*zs),
+            fillColor:dim,fillOpacity:0.85})});
       }
       continue;
     }
@@ -344,13 +363,35 @@ function render(){
     const fh = fastestHub(t);
     const r = Math.max(2.0, (inOsaka ? (2.9 + set.length*0.65)
                                      : (2.2 + set.length*0.45)) * zs);
-    L.circleMarker([s.lat,s.lon],{
-      radius: r,
-      color: full ? ring : (THEME==='light' ? '#ffffffcc' : '#00000099'),
-      weight: full ? 2.2 : 1,
-      fillColor: css(HUE[HUBS[fh]]), fillOpacity: inOsaka?0.95:0.55
-    }).bindPopup(popup(s,t,low,th)).addTo(layer);
-    hit(s, t, low, th, r);
+    // 間引き時に残す優先度: 届く枢纽が多い > 最速が速い
+    const mn = Math.min(...t.filter(v=>v!==null));
+    draws.push({s,t,cls:'reach',rank:set.length*1000-mn,r,mk:()=>
+      L.circleMarker([s.lat,s.lon],{
+        radius: r,
+        color: full ? ring : (THEME==='light' ? '#ffffffcc' : '#00000099'),
+        weight: full ? fullW : normW,
+        fillColor: css(HUE[HUBS[fh]]), fillOpacity: inOsaka?0.95:0.55
+      })});
+  }
+  // zoom 10 以下では定数をどこまで絞っても物理的に重なる（半径下限 2px ×
+  // 駅間距離 < 5px）。同一格子内はクラス別に代表 1 駅だけ描く。
+  // 格子に複数駅が入った所しか変化しないので、疎らな地域はそのまま残る。
+  // 集計(上の reach/all4/onlyLow)は間引き前に済んでいるので数字は変わらない。
+  let out = draws;
+  if(map.getZoom() <= 10){
+    const cell = map.getZoom() >= 10 ? 6 : 8;
+    const cellPick = new Map();
+    for(const d of draws){
+      const p = map.latLngToContainerPoint([d.s.lat, d.s.lon]);
+      const key = d.cls+':'+Math.floor(p.x/cell)+':'+Math.floor(p.y/cell);
+      const cur = cellPick.get(key);
+      if(!cur || d.rank > cur.rank) cellPick.set(key, d);
+    }
+    out = [...cellPick.values()];
+  }
+  for(const d of out){
+    d.mk().bindPopup(popup(d.s,d.t,low,th)).addTo(layer);
+    hit(d.s, d.t, low, th, d.r);
   }
   document.getElementById('stat').innerHTML =
     `阈值内可达 <b>${reach}</b> 站 · 四枢纽全覆盖 <b>${all4}</b> 站`
