@@ -125,6 +125,44 @@ LEVELS = {
     "京阪電気鉄道|中之島線|普通": (5, "commuter", False, "measured", WIKI + "京阪中之島線"),
     "京阪電気鉄道|交野線|普通": (5, "commuter", False, "measured", WIKI + "京阪交野線"),
 
+    # ---------------------------------------------------------------- 優等停車型（fetch_express.py 由来）
+    # 頻度は各線 Wikipedia の「日中の運行パターン」表から。日中パターンに現れない種別は
+    # headway=0 として除外する（朝夕のみの運転で、日中モデルの対象外）。
+    # 京阪本線 日中: 特急5本 / 準急5本 / 普通5本。急行・快速急行・区間急行は日中パターンに無い
+    "京阪電気鉄道|本線|特急": (5, "commuter", False, "measured", WIKI + "京阪本線"),
+    "京阪電気鉄道|本線|準急": (5, "commuter", False, "measured", WIKI + "京阪本線"),
+    "京阪電気鉄道|本線|急行": (0, "commuter", False, "measured", WIKI + "京阪本線"),
+    "京阪電気鉄道|本線|快速急行": (0, "commuter", False, "measured", WIKI + "京阪本線"),
+    "京阪電気鉄道|本線|区間急行": (0, "commuter", False, "measured", WIKI + "京阪本線"),
+    # 南海高野線 日中: 「快速急行・急行 2本」= 両者合わせて2本。停車駅がほぼ同じなので
+    # 急行に2本を集約し、快速急行は二重計上を避けるため除外する
+    "南海電気鉄道|高野線|急行": (2, "commuter", False, "measured", WIKI + "南海高野線"),
+    "南海電気鉄道|高野線|快速急行": (0, "commuter", False, "measured", WIKI + "南海高野線"),
+    "南海電気鉄道|高野線|区間急行": (2, "commuter", False, "inferred", WIKI + "南海高野線"),
+    "南海電気鉄道|高野線|準急行": (2, "commuter", False, "measured", WIKI + "南海高野線"),
+    "南海電気鉄道|高野線|ＧＲＡＮ天空": (0, "tourist", True, "measured", WIKI + "南海高野線"),
+    # 近鉄南大阪線 日中: 区間急行2本 / 準急2本+長野線直通4本 / 普通6本。急行は日中を除く時間帯
+    "近畿日本鉄道|南大阪線|急行": (0, "commuter", False, "measured", WIKI + "近鉄南大阪線"),
+    "近畿日本鉄道|南大阪線|区間急行": (2, "commuter", False, "measured", WIKI + "近鉄南大阪線"),
+    "近畿日本鉄道|南大阪線|準急": (6, "commuter", False, "measured", WIKI + "近鉄南大阪線"),
+    # 近鉄大阪線 日中: 急行3本 / 区間準急4本。快速急行は昼間時以外
+    "近畿日本鉄道|大阪線|急行": (3, "commuter", False, "measured", WIKI + "近鉄大阪線"),
+    "近畿日本鉄道|大阪線|区間準急": (4, "commuter", False, "measured", WIKI + "近鉄大阪線"),
+    "近畿日本鉄道|大阪線|快速急行": (0, "commuter", False, "measured", WIKI + "近鉄大阪線"),
+    "近畿日本鉄道|大阪線|区間急行": (0, "commuter", False, "inferred", WIKI + "近鉄大阪線"),
+    "近畿日本鉄道|大阪線|準急": (0, "commuter", False, "inferred", WIKI + "近鉄大阪線"),
+    # 近鉄奈良線 日中: 快速急行3 / 急行3 / 区間準急3 / 普通3。準急は朝夕のみ
+    "近畿日本鉄道|奈良線|急行": (3, "commuter", False, "measured", WIKI + "近鉄奈良線"),
+    "近畿日本鉄道|奈良線|区間準急": (3, "commuter", False, "measured", WIKI + "近鉄奈良線"),
+    "近畿日本鉄道|奈良線|準急": (0, "commuter", False, "measured", WIKI + "近鉄奈良線"),
+    # 阪急宝塚本線 日中: 急行6本 / 普通6本。特急(日生エクスプレス)は朝夕のみ
+    "阪急電鉄|宝塚本線|急行": (6, "commuter", False, "measured", WIKI + "阪急宝塚本線"),
+    "阪急電鉄|宝塚本線|特急": (0, "commuter", False, "measured", WIKI + "阪急宝塚本線"),
+    # 阪神本線 平日日中: 直通特急2 / 特急2 / 快速急行3 / 急行3 / 普通6
+    "阪神電気鉄道|本線|特急": (2, "commuter", False, "measured", WIKI + "阪神本線"),
+    "阪神電気鉄道|本線|直通特急": (2, "commuter", False, "measured", WIKI + "阪神本線"),
+    "阪神電気鉄道|本線|急行": (3, "commuter", False, "measured", WIKI + "阪神本線"),
+
     # ---------------------------------------------------------------- その他
     "大阪モノレール|本線|普通": (6, "commuter", False, "measured", WIKI + "大阪モノレール線"),
     "大阪モノレール|国際文化公園都市モノレール線|普通": (4, "commuter", False, "inferred", WIKI + "大阪モノレール彩都線"),
