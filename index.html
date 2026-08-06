@@ -33,8 +33,10 @@ button{font-family:inherit;cursor:pointer;background:var(--btn);color:var(--fg);
 #theme{position:absolute;right:10px;top:10px;padding:5px 9px;font-size:12px}
 
 /* 使用頻度の高い操作だけ常時表示の細いバーに置き、説明の壁は折りたたむ */
-#bar{position:absolute;left:8px;top:72px;z-index:900;background:var(--panel);
-  border:1px solid var(--panelbd);border-radius:10px;padding:8px 10px;width:206px;
+#panel{position:absolute;left:8px;top:72px;z-index:900;width:206px;
+  display:flex;flex-direction:column;gap:8px;max-height:calc(100% - 84px)}
+#bar{background:var(--panel);flex:0 0 auto;
+  border:1px solid var(--panelbd);border-radius:10px;padding:8px 10px;
   box-shadow:0 2px 10px #0003}
 #bar .top{display:flex;align-items:center;justify-content:space-between;font-size:12px;
   font-weight:700}
@@ -43,9 +45,9 @@ input[type=range]{width:100%;margin:3px 0 5px;accent-color:var(--acc)}
 .tg{display:flex;align-items:center;gap:6px;font-size:12px;cursor:pointer;padding:2px 0}
 #stat{color:var(--sub);font-size:10.5px;margin-top:4px;line-height:1.45}
 #more{width:100%;margin-top:7px;padding:4px 0;font-size:11.5px}
-#info{position:absolute;left:8px;top:72px;z-index:901;background:var(--panel);
-  border:1px solid var(--panelbd);border-radius:10px;padding:10px 12px;width:238px;
-  max-height:calc(100% - 92px);overflow:auto;-webkit-overflow-scrolling:touch;
+#info{position:relative;background:var(--panel);flex:1 1 auto;min-height:0;
+  border:1px solid var(--panelbd);border-radius:10px;padding:10px 12px;
+  overflow:auto;-webkit-overflow-scrolling:touch;
   font-size:12px;box-shadow:0 2px 12px #0005}
 #info[hidden]{display:none}
 #info h2{font-size:12px;margin:0 0 6px;font-weight:700}
@@ -58,8 +60,8 @@ input[type=range]{width:100%;margin:3px 0 5px;accent-color:var(--acc)}
 .warn{color:#c0392b}
 html[data-theme=dark] .warn{color:#ff8a80}
 @media (max-width:620px){
-  #bar{width:162px;padding:7px 8px;top:68px;left:6px}
-  #info{width:min(78vw,262px);top:68px;left:6px}
+  #panel{width:min(62vw,182px);top:68px;left:6px;max-height:calc(100% - 78px)}
+  #bar{padding:7px 8px}
   #hdr h1{font-size:14px}#map{top:60px}
 }
 </style>
@@ -72,11 +74,18 @@ html[data-theme=dark] .warn{color:#ff8a80}
 </div>
 <div id="map"></div>
 
+<div id="panel">
 <div id="bar">
   <div class="top"><span>阈值</span><span class="val" id="thv">25 分</span></div>
   <input type="range" id="th" min="15" max="40" step="1" value="25">
   <label class="tg"><input type="checkbox" id="lowfreq">
     <span>含低频优等 <span style="color:var(--acc)">⚡</span></span></label>
+  <label class="tg"><input type="checkbox" id="areaOn">
+    <span>面覆盖（＋步行）</span></label>
+  <div id="walkWrap" hidden>
+    <div class="top"><span>步行</span><span class="val" id="wkv">10 分</span></div>
+    <input type="range" id="wk" min="0" max="20" step="1" value="10">
+  </div>
   <div id="stat"></div>
   <button id="more">图例与说明 ▾</button>
 </div>
@@ -86,6 +95,7 @@ html[data-theme=dark] .warn{color:#ff8a80}
   <h2>可达枢纽</h2>
   <div id="lg"></div>
   <div class="note" id="note">载入中…</div>
+</div>
 </div>
 
 <script>
@@ -154,13 +164,131 @@ const css = c => 'rgb('+c[0]+','+c[1]+','+c[2]+')';
 
 let DATA=null, layer=L.layerGroup().addTo(map);
 
+const WALK_M_PER_MIN = 80;   // 4.8km/h。直線距離で見るので河川・高速などの障壁は無視している
+
+// 面カバレッジ: 画面をセル格子に切り、各セルについて
+//   ある枢纽hへの総時間 = min over 駅s ( 軌道時間(s→h) + 徒歩時間(セル→s) )
+//   ただし 軌道時間 ≤ 閾値A かつ 徒歩 ≤ 閾値B
+// を求め、4枢纽のうち最小のものの色で塗る。混色はしない。
+// セル毎に全駅を舐めると重いので、駅ごとに半径Bの円をスタンプして最小値を更新する。
+// 格子のまま描くとブロック状になるので、格子解像度の小さいcanvasに描いてから
+// 平滑化を効かせて拡大する。
+const AreaLayer = L.Layer.extend({
+  onAdd(map){
+    this._map = map;
+    this._c = L.DomUtil.create('canvas');
+    this._c.style.pointerEvents = 'none';
+    map.getPanes().overlayPane.appendChild(this._c);
+    map.on('moveend zoomend resize', this._reset, this);
+    this._reset();
+  },
+  onRemove(map){
+    map.off('moveend zoomend resize', this._reset, this);
+    L.DomUtil.remove(this._c);
+  },
+  _reset(){
+    const map = this._map, size = map.getSize();
+    L.DomUtil.setPosition(this._c, map.containerPointToLayerPoint([0,0]));
+    const dpr = Math.min(2, window.devicePixelRatio || 1);
+    this._c.width = size.x*dpr; this._c.height = size.y*dpr;
+    this._c.style.width = size.x+'px'; this._c.style.height = size.y+'px';
+    this.draw();
+  },
+  draw(){
+    if(!DATA || !this._map) return;
+    const map = this._map, size = map.getSize();
+    const ctx = this._c.getContext('2d');
+    ctx.setTransform(1,0,0,1,0,0);
+    ctx.clearRect(0,0,this._c.width,this._c.height);
+
+    const A = +document.getElementById('th').value;
+    const B = +document.getElementById('wk').value;
+    const low = document.getElementById('lowfreq').checked;
+    if(B<=0) return;
+
+    // 1px あたりのメートル数（緯度で変わる）
+    const c0 = map.containerPointToLatLng([0, size.y/2]);
+    const c1 = map.containerPointToLatLng([100, size.y/2]);
+    const mPerPx = map.distance(c0,c1)/100;
+    const CELL = 3;                                   // 格子の粗さ(px)
+    const W = Math.ceil(size.x/CELL), H = Math.ceil(size.y/CELL);
+    const Rpx = (B*WALK_M_PER_MIN)/mPerPx;            // 徒歩圏の画面半径(px)
+    const Rc  = Rpx/CELL;                             // 同(セル)
+    if(Rc < 0.4) return;
+    const minPerCell = (CELL*mPerPx)/WALK_M_PER_MIN;  // 1セル進むのに掛かる徒歩分
+
+    const best = new Float32Array(W*H*4).fill(Infinity);
+    const margin = Rpx + 20;
+    const Rc2 = Rc*Rc, Ri = Math.ceil(Rc);
+    for(const s of DATA.stations){
+      const t = low ? s.t_low : s.t_default;
+      let any=false;
+      for(let h=0;h<4;h++) if(t[h]!==null && t[h]<=A){any=true;break;}
+      if(!any) continue;
+      const p = map.latLngToContainerPoint([s.lat,s.lon]);
+      if(p.x < -margin || p.y < -margin || p.x > size.x+margin || p.y > size.y+margin) continue;
+      const cx = p.x/CELL, cy = p.y/CELL;
+      const x0 = Math.max(0, Math.floor(cx-Ri)), x1 = Math.min(W-1, Math.ceil(cx+Ri));
+      const y0 = Math.max(0, Math.floor(cy-Ri)), y1 = Math.min(H-1, Math.ceil(cy+Ri));
+      for(let y=y0; y<=y1; y++){
+        const dy = y+0.5-cy, dy2 = dy*dy;
+        for(let x=x0; x<=x1; x++){
+          const dx = x+0.5-cx, d2 = dx*dx+dy2;
+          if(d2 > Rc2) continue;
+          const walk = Math.sqrt(d2)*minPerCell;
+          const base = (y*W+x)*4;
+          for(let h=0;h<4;h++){
+            const tv = t[h];
+            if(tv===null || tv>A) continue;
+            const v = tv + walk;
+            if(v < best[base+h]) best[base+h] = v;
+          }
+        }
+      }
+    }
+
+    // 格子解像度の ImageData を作り、平滑化を効かせて拡大する
+    const img = ctx.createImageData(W,H);
+    const px = img.data;
+    const cols = HUBS.map(h=>HUE[h]);
+    let covered = 0;
+    for(let i=0;i<W*H;i++){
+      let bi=-1, bv=Infinity;
+      for(let h=0;h<4;h++){ const v=best[i*4+h]; if(v<bv){bv=v;bi=h;} }
+      const o = i*4;
+      if(bi<0){ px[o+3]=0; continue; }
+      covered++;
+      const c = cols[bi];
+      px[o]=c[0]; px[o+1]=c[1]; px[o+2]=c[2]; px[o+3]=140;
+    }
+    const off = document.createElement('canvas');
+    off.width=W; off.height=H;
+    off.getContext('2d').putImageData(img,0,0);
+    ctx.imageSmoothingEnabled = true;
+    ctx.imageSmoothingQuality = 'high';
+    ctx.filter = 'blur(1.2px)';
+    ctx.drawImage(off, 0, 0, this._c.width, this._c.height);
+    ctx.filter = 'none';
+    this._covered = covered/(W*H);
+  }
+});
+const areaLayer = new AreaLayer();
+
 // 見た目の半径が小さいと指でもマウスでも押しにくいので、
 // 同じ popup を持つ透明な当たり判定の円を上に重ねる。
 // fillOpacity を 0 にすると SVG の当たり判定自体が消えるので極小値にする。
 function hit(s, t, low, th, r){
-  L.circleMarker([s.lat,s.lon],{radius:Math.max(11, r+5), opacity:0,
+  // 当たり判定も zoom に追随させるが、指で押せる下限は確保する
+  L.circleMarker([s.lat,s.lon],{radius:Math.max(9, r+5), opacity:0,
     fillOpacity:0.001, fillColor:'#000'})
     .bindPopup(popup(s,t,low,th)).addTo(layer);
+}
+
+// 縮小すると点が相対的に大きくなって団子になるので、zoom に応じて縮める。
+// 基準は初期表示の zoom 11。1段縮小ごとに 0.78 倍、拡大側は 1.7 倍で頭打ち。
+const BASE_ZOOM = 11;
+function zoomScale(){
+  return Math.max(0.34, Math.min(1.7, Math.pow(0.78, BASE_ZOOM - map.getZoom())));
 }
 
 function render(){
@@ -170,6 +298,7 @@ function render(){
   layer.clearLayers();
   const dim = cssvar('--dim'), dimbd = cssvar('--dimbd'), acc = cssvar('--acc');
   const ring = cssvar('--ring');
+  const zs = zoomScale();
   let reach=0, all4=0, onlyLow=0;
   for(const s of DATA.stations){
     const t = low ? s.t_low : s.t_default;
@@ -183,21 +312,24 @@ function render(){
       const lowOk = s.t_low.some(x=>x!==null);
       if(!low && noService && lowOk){
         onlyLow++;
-        L.circleMarker([s.lat,s.lon],{radius:3.6,color:acc,weight:1.6,
+        const rr = Math.max(2.2, 3.6*zs);
+        L.circleMarker([s.lat,s.lon],{radius:rr,color:acc,weight:1.6,
           fillColor:dim,fillOpacity:0.22,dashArray:'2,2'})
           .bindPopup(popup(s,t,low,th)).addTo(layer);
-        hit(s, t, low, th, 3.6);
+        hit(s, t, low, th, rr);
       }else{
-        L.circleMarker([s.lat,s.lon],{radius:2.6,color:dimbd,weight:0.8,
+        const rr = Math.max(1.6, 2.6*zs);
+        L.circleMarker([s.lat,s.lon],{radius:rr,color:dimbd,weight:0.8,
           fillColor:dim,fillOpacity:0.85}).bindPopup(popup(s,t,low,th)).addTo(layer);
-        hit(s, t, low, th, 2.6);
+        hit(s, t, low, th, rr);
       }
       continue;
     }
     reach++; if(set.length===4) all4++;
     const full = set.length===4;
     const fh = fastestHub(t);
-    const r = inOsaka ? (4.2 + set.length*0.9) : (3.2 + set.length*0.6);
+    const r = Math.max(2.4, (inOsaka ? (4.2 + set.length*0.9)
+                                     : (3.2 + set.length*0.6)) * zs);
     L.circleMarker([s.lat,s.lon],{
       radius: r,
       color: full ? ring : (THEME==='light' ? '#ffffffcc' : '#00000099'),
@@ -270,7 +402,13 @@ fetch('reach.json').then(r=>r.json()).then(d=>{
   for(const s of d.stations) for(const p of s.prov) if(p){cnt[p]++;tot++;}
   const pct=k=>tot? (100*cnt[k]/tot).toFixed(0) : 0;
   document.getElementById('note').innerHTML =
-    '<b>配色</b>　每站按<b>最快到达的那个枢纽</b>着色，不做混色——红+蓝+绿平均出来是灰色，'
+    '<b>面覆盖</b>　打开后，每个像素格按「min over 车站（轨道时间 + 步行时间）」'
+    +'对四枢纽各算一遍，取最快的那个上色，和站点用同一套逻辑，不做混色。'
+    +'步行速度取 4.8km/h（80m/分）。'
+    +'<b class="warn">直线半径会高估</b>：实际有大川・淀川・阪神高速・铁路本身这些屏障，'
+    +'真实可步行面积大约只有圆盘的 7–8 成，靠河的车站高估更明显。要做准需要引 OSM 步行路网'
+    +'跑等时圈，那是另一个量级的工作。'
+    +'<br><br><b>配色</b>　每站按<b>最快到达的那个枢纽</b>着色，不做混色——红+蓝+绿平均出来是灰色，'
     +'和「不可达」的灰无法区分。可达枢纽的<b>数量</b>改用点的大小表示，'
     +'四枢纽全覆盖再加一圈粗边。'
     +'<br><br><b>精度</b>　实测 '+pct('measured')+'% ／ 锚定 '+pct('anchored')+'% ／ 借用估算 '+pct('borrowed')+'%'
@@ -316,8 +454,23 @@ document.getElementById('theme').addEventListener('click',()=>{
   applyTheme();
 });
 applyTheme();
-document.getElementById('th').addEventListener('input',()=>{if(DATA)render();});
-document.getElementById('lowfreq').addEventListener('change',()=>{if(DATA)render();});
+function redrawAll(){ if(!DATA) return; render(); if(map.hasLayer(areaLayer)) areaLayer.draw(); }
+document.getElementById('th').addEventListener('input',()=>{
+  document.getElementById('thv').textContent =
+    document.getElementById('th').value+' 分';
+  redrawAll();
+});
+document.getElementById('wk').addEventListener('input',()=>{
+  document.getElementById('wkv').textContent = document.getElementById('wk').value+' 分';
+  if(map.hasLayer(areaLayer)) areaLayer.draw();
+});
+document.getElementById('lowfreq').addEventListener('change',redrawAll);
+document.getElementById('areaOn').addEventListener('change',e=>{
+  document.getElementById('walkWrap').hidden = !e.target.checked;
+  if(e.target.checked) map.addLayer(areaLayer); else map.removeLayer(areaLayer);
+});
+// 縮尺が変わったら点の半径を引き直す
+map.on('zoomend', ()=>{ if(DATA) render(); });
 </script>
 </body>
 </html>
