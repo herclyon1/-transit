@@ -556,6 +556,17 @@ function cleanGeom(geom){
   if(geom.type==="MultiPolygon"){ var polys=geom.coordinates.map(cleanPoly).filter(Boolean); return polys.length?{type:"MultiPolygon",coordinates:polys}:geom; }
   return geom;
 }
+function fixWinding(geom){ // v24:球面绕向校正——环绕向反=d3球面填充"全球补集"(海变国色的真因);逐Polygon验geoArea>2π则反转全部环
+  if(!geom) return geom;
+  const polys = geom.type==="MultiPolygon" ? geom.coordinates : [geom.coordinates];
+  const out = polys.map(p => {
+    let q = p;
+    if(d3.geoArea({type:"Polygon", coordinates:q}) > Math.PI*2) q = q.map(r => r.slice().reverse());
+    if(d3.geoArea({type:"Polygon", coordinates:q}) > Math.PI*2) return null; // 反转仍超半球=退化环,弃
+    return q;
+  }).filter(Boolean);
+  return {type:"MultiPolygon", coordinates: out};
+}
 function dissolveRings(rings){ // 无向边计数融合共享顶点的密铺环→并集边界环(消内部边=消省间AA缝)
   var P=6, vk=function(p){return p[0].toFixed(P)+","+p[1].toFixed(P);};
   var ek=function(a,b){var ka=vk(a),kb=vk(b);return ka<kb?ka+"#"+kb:kb+"#"+ka;};
@@ -947,6 +958,7 @@ function buildKyo(){
     const ex = bg.find(b=>b.grp===grp);
     if(ex){ const arr=[]; pushPolys(arr, ex.geometry); ex.geometry={type:"MultiPolygon",coordinates:arr.concat(polys)}; }
     else bg.push({grp, geometry:{type:"MultiPolygon",coordinates:polys}}); });
+  bg.forEach(b => { b.geometry = fixWinding(b.geometry); }); // v24:全部背景做球面绕向校正(修"海变国色"整体崩坏)
   const landAll = {type:"MultiPolygon", coordinates: bg.reduce((a,b)=>{ const g=b.geometry; (g.type==="MultiPolygon"?g.coordinates:[g.coordinates]).forEach(p=>a.push(p)); return a; }, [])}; // v24:全陆地合并成一块中性底
   return {units, bg, landAll};
 }
@@ -1250,6 +1262,10 @@ function enterHist(kind){
   projection.fitExtent([[16,56],[w-16,h-64]], {type:"FeatureCollection", features: fitFeats.length ? fitFeats : r.feats});
   gWorld.selectAll("path").attr("d", path);
   gCtx.selectAll("path").attr("d", path);
+  // v24:投影fit后必须同步重投影全部背景层(v23b的gWorldBg漏了这步=各国背景画在旧投影位置,整体崩坏的根源)
+  gWorldBg.selectAll("path").attr("d", d => path(d.geometry));
+  gLandBg.selectAll("path").attr("d", d => path(d));
+  gHalo.selectAll("path").attr("d", path);
   svg.call(zoom.transform, d3.zoomIdentity);
   r.feats.forEach(f => { f._c = null; f._mb = null; }); // 投影已变，标签几何缓存失效
   histLblFeats = r.shown;
@@ -1279,6 +1295,7 @@ window.addEventListener("resize", () => {
   }, 150); // 防抖：历史视图resize要整体重建路径
 });
 </script>
+<a id="homebtn" href="../index.html" title="返回目录" style="position:fixed;right:14px;bottom:74px;z-index:2000;width:40px;height:40px;display:flex;align-items:center;justify-content:center;background:rgba(255,255,255,.92);border:1px solid #c9d2db;border-radius:50%;box-shadow:0 2px 8px rgba(20,30,50,.18);font-size:19px;text-decoration:none;color:#1b2433;user-select:none;">⌂</a>
 </body>
 <!-- CHANGELOG
 v1-v7: 测验主体（闯关/混考/两段式重考/双口径错题统计）
@@ -1324,6 +1341,12 @@ v18: 修海域线切陆bug（邻国缓冲侵入本方海岸→加0.3°保护带�
 v19: 高精度岛扩至九组（硫黄・大東・小笠原・西沙・南沙均为OSM实测海岸线）；海域改画
      边界线且陆界接壤段剔除、邻国陆地洞环保留（根治歯舞色丹切陆）；大日本新增接壤
      外国陆地白色剪影层；名称标签全局化（三面板通用，缩放自适应显隐）
+v24b: 東亜整体崩坏双根修（用户报"东亚界面更崩坏",真Chromium全图渲染证实海洋被涂成国家绿+西侧大片错位红）：
+     ①投影同步：enterHist的fitExtent重投影只更新gWorld/gCtx,v23b新增的gWorldBg从未重投影——背景层全部画在旧投影
+     (日本视图)位置=CHN红块跑到画面西侧的直接原因;现fit后同步重投影gWorldBg/gLandBg/gHalo。②球面绕向:dissolveRings
+     输出环绕向随机,反绕环在d3球面填充=全球补集(TWN/BGD绿把整个海洋涂绿的真因);新增fixWinding逐Polygon验
+     d3.geoArea>2π则反转,应用于全部bg+landAll。修后真Chromium验证:海洋恢复#dcebf5浅蓝,全图无错位色块,
+     深缩放k~40尼泊尔绿缝0蓝缝0白缝0(此前"数据错位蓝缝"实为背景错位漏色,一并消失)。
 v24: 边界缝彻底根治（用户报"v23越修越崩坏":v23-3的dissolveRings垫背景把白缝换成了国界绿缝——真Chromium逐像素证实
      深缩放尼泊尔国界透出邻国代表色#90c0a0绿缝~3360px）。真因=各国背景描边随缩放放大(width .7~8无vector-effect),
      深缩放侵入邻国漏第三国色。改用标准制图法:①新增gHalo本国同色光晕层(垫在前景下、深色国界线上),每单元用自身
