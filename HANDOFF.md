@@ -16,6 +16,7 @@
 - stations_final.json: 513站,府界裁剪,事业者分类(operator标签→KSJ2:LIN线名→人工补丁三级fallback,残留未分类2站)
 - lines_osaka.json: 4908条way旅客轨道几何(service线已排除,阪堺tram_stop未抓→停留所缺失)
 - 大阪车站线路叠加图_v0.html: Leaflet暗色底图+线路+事业者色站点+图层开关+四枢纽星标
+  （**已于 v27 清理会话删除**：已被 transit.html v1 完全取代，文件仍在 git 历史里可取回）
 
 ## v1 阶段0 已完成 (拓扑层)
 - **GTFS 路线已证伪,勿重走**: gtfs-data.jp 全量 547 feed 中,大阪府(pref_id=27)只有神姫観光 Limon Bus 一条高速巴士。
