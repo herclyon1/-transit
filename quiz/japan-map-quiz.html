@@ -510,11 +510,11 @@ d3.json(TOPO_URL).then(topo => {
     .text(d => P[d.properties.id][0].replace(/[県都府]$/,""));
 
   zoom = d3.zoom().scaleExtent([1,14])
-    .on("start", e => { if(e.sourceEvent) window.__gestT = d3.zoomTransform(svg.node()); })
+    .on("start", e => { if(e.sourceEvent){ window.__gestT = d3.zoomTransform(svg.node()); eaSetFast(true); } })
     .on("end", e => { if(e.sourceEvent && window.__gestT){ var c=d3.zoomTransform(svg.node());
         if(Math.abs(c.k-window.__gestT.k)>1e-3||Math.abs(c.x-window.__gestT.x)>2||Math.abs(c.y-window.__gestT.y)>2){
           zoomStack.push(window.__gestT); if(zoomStack.length>40) zoomStack.shift(); } window.__gestT=null; }
-      eaRefine(); })
+      eaSetFast(false); eaRefine(); })
     .on("zoom", e => {
     gRoot.attr("transform", e.transform);
     lastK = e.transform.k;
@@ -1002,8 +1002,12 @@ function eaViewBox(){ // 视口的经纬包围盒(含60%余量)与投影裁剪�
     const clip=[[p0[0]-mx,p0[1]-my],[p1[0]+mx,p1[1]+my]];
     const inv=p=>projection.invert(p);
     const cs=[inv(clip[0]),inv([clip[1][0],clip[0][1]]),inv([clip[0][0],clip[1][1]]),inv(clip[1])];
-    if(cs.some(c=>!c||isNaN(c[0]))) return null;
-    return {k:t.k, clip, vb:[Math.min(...cs.map(c=>c[0])),Math.min(...cs.map(c=>c[1])),Math.max(...cs.map(c=>c[0])),Math.max(...cs.map(c=>c[1]))]};
+    if(cs.some(c=>!c||isNaN(c[0]))) return {k:t.k, clip, vb:null}; // 视口含投影边界(全图时常见)=不做剔除
+    const lo=[Math.min(...cs.map(c=>c[0])),Math.min(...cs.map(c=>c[1]))], hi=[Math.max(...cs.map(c=>c[0])),Math.max(...cs.map(c=>c[1]))];
+    // 本图投影 rotate(-150), 全图视野横跨180°经线 => 角点经度回绕后 min/max 得到的是"补集", 会把几乎所有单元误剔除。
+    // 跨界(经度跨度>150°)或高纬回绕时一律放弃剔除: 那种视野本来就几乎全可见, 剔除也省不下什么。
+    if(hi[0]-lo[0] > 150) return {k:t.k, clip, vb:null};
+    return {k:t.k, clip, vb:[lo[0],lo[1],hi[0],hi[1]]};
   }catch(e){ return null; }
 }
 // v27性能核心: ①深缩放启用投影矩形裁剪(path只输出视口附近几何,光栅面积有界)
@@ -1022,21 +1026,44 @@ function eaInitCanvas(){
   eaCtx=$("eaCv").getContext("2d");
   eaGeoPath=d3.geoPath(projection, eaCtx);
 }
+// 手势期间降分辨率: 实测帧时里 JS 只占约 10ms, 其余全是浏览器光栅化画布像素,
+// 而光栅成本正比于像素数。手势中按 0.5 倍后备缓冲绘制再由 CSS 拉伸(像素数 1/4),
+// 松手后立刻按全分辨率重绘 —— 停下来看的画面始终是清晰的。
+let eaFast=false;
 function eaResize(){
   const cv=$("eaCv"), w=$("stage").clientWidth, h=$("stage").clientHeight;
-  const dpr=Math.min(window.devicePixelRatio||1, 2); // 上限2: 3x屏再翻倍光栅面积不划算
+  const dpr=Math.min(window.devicePixelRatio||1, 2)*(eaFast?0.5:1); // 上限2: 3x屏再翻倍光栅面积不划算
   cv.width=Math.round(w*dpr); cv.height=Math.round(h*dpr);
   cv.style.width=w+"px"; cv.style.height=h+"px"; cv._dpr=dpr;
 }
+function eaSetFast(on){
+  if(mode!=="kyoeiken"||eaFast===on||!eaCtx) return;
+  eaFast=on; eaResize(); eaDraw();
+}
 function eaDraw(){ if(!eaRAF) eaRAF=requestAnimationFrame(eaDrawNow); } // 手势内多次事件合并成一帧
 function eaShown(f){ return f.properties.grp==="JPN" || !kyoHidden[f.properties.grp]; }
-function eaP2D(f){ // 基准投影下的几何缓存为 Path2D: 平移/缩放只改画布变换矩阵,
-  if(f._p2d !== undefined) return f._p2d;  // 每帧不再做任何几何遍历(d3.geoPath 只在换档/换投影时跑一次)
-  const d = path(f); f._p2d = d ? new Path2D(d) : null; return f._p2d;
+// 几何 -> Path2D 缓存。两层意义:
+//  ①平移/缩放只改画布变换矩阵, 帧内零几何遍历;
+//  ②按"视口分块"裁剪后再烘焙 —— 否则像中国这种巨型单元即使九成在屏外, 光栅器仍要跑完整条轮廓
+//    (实测 k=8 拖动帧 81ms 即源于此)。分块步长=一个视口, 缓存范围=3x3 视口, 故拖满一屏才重建一次。
+function eaCell(){
+  const t=d3.zoomTransform(svg.node());
+  const w=$("stage").clientWidth, h=$("stage").clientHeight;
+  const gx=w/t.k, gy=h/t.k, p0=t.invert([0,0]);
+  const cx=Math.floor(p0[0]/gx), cy=Math.floor(p0[1]/gy);
+  return { key: eaTier+"|"+Math.round(Math.log2(t.k)*3)+"|"+cx+"|"+cy,
+           rect: [[cx*gx-gx, cy*gy-gy],[(cx+2)*gx, (cy+2)*gy]] }; // 必覆盖当前视口
+}
+function eaP2D(f,key){
+  if(f._pk === key) return f._p2d;
+  // 手势进行中不重新烘焙: 缓存范围有 3x3 视口, 一次手势极少跑出去; 宁可边缘暂时略旧,
+  // 也不要在拖动中卡出一帧几百毫秒的尖峰。松手时 eaSetFast(false) 会整体重建。
+  if(eaFast && f._pk) return f._p2d;
+  const d = path(f); f._p2d = d ? new Path2D(d) : null; f._pk = key; return f._p2d;
 }
 function eaInvalidate(){ // 换档或换投影后必须清缓存
   if(!kyoFeats) return;
-  [kyoFeats.units,kyoFeats.water,kyoFeats.rivers,kyoFeats.disp].forEach(a=>a&&a.forEach(f=>{ f._p2d=undefined; }));
+  [kyoFeats.units,kyoFeats.water,kyoFeats.rivers,kyoFeats.disp].forEach(a=>a&&a.forEach(f=>{ f._pk=null; f._p2d=undefined; }));
 }
 function eaDrawNow(){
   eaRAF=0;
@@ -1045,25 +1072,28 @@ function eaDrawNow(){
   c.setTransform(1,0,0,1,0,0); c.clearRect(0,0,cv.width,cv.height);
   const v=eaViewBox(), vb=v?v.vb:null;
   const hit=g=>!vb||!g||!(g[2]<vb[0]||vb[2]<g[0]||g[3]<vb[1]||vb[3]<g[1]);
+  const cell=eaCell(), CK=cell.key, savedClip=projection.clipExtent();
+  projection.clipExtent(cell.rect); // 只在烘焙 Path2D 期间生效
   c.setTransform(dpr*t.k,0,0,dpr*t.k,dpr*t.x,dpr*t.y);
   const lw=n=>n/t.k; // 非缩放描边
   c.lineJoin="round"; c.lineCap="round";
   c.strokeStyle="#5f5348"; c.lineWidth=lw(.45);
-  kyoFeats.units.forEach(u=>{ if(!eaShown(u)||!hit(u._gb)) return; const p2=eaP2D(u); if(!p2) return;
+  kyoFeats.units.forEach(u=>{ if(!eaShown(u)||!hit(u._gb)) return; const p2=eaP2D(u,CK); if(!p2) return;
     c.fillStyle = u.properties.grp==="JPN" ? JP_FILL : (KYO_COLORS[u.properties.grp]||"#ccc");
     c.fill(p2); c.stroke(p2); });
   c.fillStyle="#bcd8ec"; c.strokeStyle="#9dc2dd"; c.lineWidth=lw(.5);
-  kyoFeats.water.forEach(f=>{ if(!hit(f._gb))return; const p2=eaP2D(f); if(p2){ c.fill(p2); c.stroke(p2); } });
+  kyoFeats.water.forEach(f=>{ if(!hit(f._gb))return; const p2=eaP2D(f,CK); if(p2){ c.fill(p2); c.stroke(p2); } });
   c.strokeStyle="#9dc2dd"; c.lineWidth=lw(.9);
-  kyoFeats.rivers.forEach(f=>{ if(!hit(f._gb))return; const p2=eaP2D(f); if(p2) c.stroke(p2); });
+  kyoFeats.rivers.forEach(f=>{ if(!hit(f._gb))return; const p2=eaP2D(f,CK); if(p2) c.stroke(p2); });
   if(kyoFeats.disp.length){
     c.strokeStyle="#8a3030"; c.lineWidth=lw(1.1); c.setLineDash([lw(5),lw(4)]); c.globalAlpha=.85;
-    kyoFeats.disp.forEach(f=>{ const p2=eaP2D(f); if(p2) c.stroke(p2); });
+    kyoFeats.disp.forEach(f=>{ const p2=eaP2D(f,CK); if(p2) c.stroke(p2); });
     c.setLineDash([]); c.globalAlpha=1;
   }
-  if(eaSel && eaShown(eaSel)){ const p2=eaP2D(eaSel);
+  if(eaSel && eaShown(eaSel)){ const p2=eaP2D(eaSel,CK);
     if(p2){ c.strokeStyle="#20486e"; c.lineWidth=lw(2.2); c.stroke(p2); } }
   c.setTransform(1,0,0,1,0,0);
+  projection.clipExtent(savedClip);
   updateDispLbl();
 }
 function eaHitTest(px,py){ // 屏幕坐标 -> 单元(bbox预筛 + d3.geoContains球面判定)
@@ -1461,10 +1491,18 @@ v19: 高精度岛扩至九组（硫黄・大東・小笠原・西沙・南沙均
 v27: 卡顿根治 + 屎山清扫 + 锡金按外部数据重建(用户: "自建修复结果就是永远修不好, 找别人做好的")。
      ①【屎山】ADMIN1常量3.37MB=旧版JS的95%, 内联导致手机每次开页阻塞解析(4x降速实测首屏30.2秒)。
        外置为 admin1.topojson 且只有大日本模式才取; MNP并入ea数据。HTML 3.55MB→290KB(-92%), 首屏30.2s→2.0s。
-     ②【卡顿】SVG扛不住本图量级(661单元+湖泊河流, 1094个path/3.2MB路径数据, 深缩放拖动帧206ms)。
-       東亜重图层改 Canvas 渲染 + 几何预烘焙 Path2D + 视口bbox剔除 + 标签只对可见单元建DOM。
-       4x降速手机 k=30 拖动帧 206ms→25ms(8倍), JS堆463MB→92MB, DOM 1094条→58条。
-       単元不再是DOM节点, 点击改 eaHitTest(球面point-in-polygon); 勾选过滤/选中高亮/退栈均已回归测试。
+     ②【卡顿】用户报"放大之后卡的无法使用"。用 4x降速+390x844 手机模拟复现, 真实手势实测(v26):
+       连续放大 p90=2495ms / max=5277ms —— 即每放大几步就冻结2~5秒, 与用户描述完全吻合。
+       根因是 SVG 扛不住本图量级(661单元+湖泊河流=1094个path/3.2MB路径数据), 每次缩放都要
+       让浏览器对全部路径重新布局与光栅。改造四件事:
+         · 東亜重图层全部改 Canvas 渲染(单元不再是DOM节点, 点击改 eaHitTest 球面point-in-polygon)
+         · 几何按"视口分块"裁剪后烘焙成 Path2D 缓存(eaP2D/eaCell), 帧内零几何遍历;
+           巨型单元(如中国)即使九成在屏外也不再整条光栅
+         · 手势期间按 0.5 倍后备缓冲绘制(像素数1/4), 松手立即全分辨率重绘 —— 停下看到的始终清晰
+         · 标签只对"够大且在视口内"的单元建DOM(此前每帧对全部661个文本写属性)
+       实测(v26→v27): 连续放大 p90 2495→76ms、max 5277→144ms; 拖动 k=30 p90 55→21ms、max 138→23ms;
+       首屏 30.2s→2.0s; JS堆 463→53MB; DOM 1094条→58条。
+       勾选过滤/选中高亮/点击详情/退栈/切模式均已回归测试通过。
      ③【精度】旧lo档用百分比简化(4%/10%)——中国这类点多的大单元被削得最狠, 所以"中国精度特别低"。
        改按地面距离分三档(1500m/300m/80m), 阈值按"简化间隔≈1屏幕像素"推导, 各档视觉无损。
      ④【锡金】不再手工切割。CGAZ一级层把整条春丕河谷(至89.83°E)并入锡金, 且把不丹北部一条
