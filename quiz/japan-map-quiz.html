@@ -1050,21 +1050,26 @@ function eaInitCanvas(){
 // 画布比舞台四周各多画 EA_OVER 比例, 这样缩小/平移时不会立刻露出空白边。
 const EA_OVER=0.22;
 let eaIdleT=0, eaBaseT=null;
-function eaResize(){
+function eaResize(low){
   const cv=$("eaCv"), w=$("stage").clientWidth, h=$("stage").clientHeight;
-  const dpr=Math.min(window.devicePixelRatio||1, 2); // 上限2: 3x屏再翻倍光栅面积不划算
+  // 运动中的重绘用 0.55 倍后备缓冲(像素数约1/3), 停手后的那次重绘才用全分辨率 —— 停下看到的始终清晰
+  const dpr=Math.min(window.devicePixelRatio||1, 2)*(low?0.55:1); // 上限2: 3x屏再翻倍光栅面积不划算
   const ox=Math.round(w*EA_OVER), oy=Math.round(h*EA_OVER);
   const cw=w+ox*2, ch=h+oy*2;
   cv.width=Math.round(cw*dpr); cv.height=Math.round(ch*dpr);
   cv.style.width=cw+"px"; cv.style.height=ch+"px";
   cv.style.left=(-ox)+"px"; cv.style.top=(-oy)+"px";
-  cv._dpr=dpr; cv._ox=ox; cv._oy=oy;
+  cv._dpr=dpr; cv._ox=ox; cv._oy=oy; cv._low=!!low;
 }
 function eaFollow(){ // 把画布贴图从"绘制时的视角"变换到"当前视角"
-  const cv=$("eaCv"); if(!eaBaseT||!cv) return;
+  const cv=$("eaCv"); if(!eaBaseT||!cv){ eaDraw(); return; }
   const t=d3.zoomTransform(svg.node()), s=t.k/eaBaseT.k;
-  if(Math.abs(s-1)<1e-6 && Math.abs(t.x-eaBaseT.x)<0.01 && Math.abs(t.y-eaBaseT.y)<0.01){ cv.style.transform=""; return; }
   const dx=t.x-s*eaBaseT.x, dy=t.y-s*eaBaseT.y;
+  // 运动中优先让合成器搬运已有贴图(零成本)。一旦移出过绘余量(会露白边)、缩小过多、或放大到明显发虚,
+  // 才真重绘一次 —— 于是一次长拖动只重绘几次, 而不是每帧都重绘。
+  // 放大方向(s>1)贴图只是变糊、不会露白, 所以放大中一律交给合成器, 停手再出清晰图;
+  // 缩小(s<0.92)或平移超出过绘余量会露白, 必须真重绘。
+  if(s<0.92 || Math.abs(dx)>cv._ox*0.85 || Math.abs(dy)>cv._oy*0.85){ eaDraw(); return; }
   cv.style.transform="translate("+dx+"px,"+dy+"px) scale("+s+")";
 }
 function eaDraw(){ if(!eaRAF) eaRAF=requestAnimationFrame(eaDrawNow); } // 手势内多次事件合并成一帧
@@ -1100,7 +1105,10 @@ function eaInvalidate(){ // 换档或换投影后必须清缓存
 function eaDrawNow(){
   eaRAF=0;
   if(mode!=="kyoeiken"||!kyoFeats||!eaCtx) return;
-  const cv=$("eaCv"), c=eaCtx, t=d3.zoomTransform(svg.node()), dpr=cv._dpr||1;
+  const cv=$("eaCv"), t=d3.zoomTransform(svg.node());
+  const low=!!eaIdleT;                       // 还在运动中 => 低分辨率重绘
+  if(cv._low!==low) eaResize(low);
+  const c=eaCtx, dpr=cv._dpr||1;
   cv.style.transform=""; eaBaseT=t;   // 本帧按当前视角绘制, 贴图变换归零
   c.setTransform(1,0,0,1,0,0); c.clearRect(0,0,cv.width,cv.height);
   const v=eaViewBox(), vb=v?v.vb:null;
@@ -1523,6 +1531,17 @@ v18: 修海域线切陆bug（邻国缓冲侵入本方海岸→加0.3°保护带�
 v19: 高精度岛扩至九组（硫黄・大東・小笠原・西沙・南沙均为OSM实测海岸线）；海域改画
      边界线且陆界接壤段剔除、邻国陆地洞环保留（根治歯舞色丹切陆）；大日本新增接壤
      外国陆地白色剪影层；名称标签全局化（三面板通用，缩放自适应显隐）
+v27.3: 不丹改用官方边界数据（用户质问"你在自己划国界？"—— 说得对，之前那条带子是我按二级层判定归属后
+     "并"进廷布宗的，形状仍是 CGAZ 一级层那条 35km 直线，与现实山脊线不符）。改法：
+       · 不丹 20 个宗整体换成 geoBoundaries gbOpen BTN（官方源）：由其 ADM2 的 205 个宗辖区
+         （西北角段长中位 123m = 真实山脊线）按其 ADM1 归并而成，中文名由"与原单元重叠最大"自动对应。
+       · 与邻国的分区用集合运算保证正确，不靠人工判断：新不丹先裁到原有陆地范围内（裁掉 0，说明
+         官方边界完全落在原数据陆地内），邻国再扣掉新不丹；原不丹未被覆盖的 0.019°² 按共享边界归还邻国。
+         净效果：从邻国划归不丹 0.036°²，无缝、无重叠、总陆地面积不变。
+       · 结果：不丹西北角由 1 条 35km 直线变成 357 段、中位 367m 的真实边界；
+         尼泊尔｜锡金｜中国春丕河谷楔形南下｜不丹 的结构与谷歌地图一致。
+     另修 v27.2 引入的性能回退：放大方向贴图只会变糊不会露白，故放大中一律交给合成器，
+     只有缩小或平移超出过绘余量才真重绘。
 v27.2: 用户真机反馈六连修（都是 v27 引入的回归或未尽之处，全部真机模拟复现后再修）：
      ①【图层被埋】画布是绝对定位、SVG 是静态定位，CSS 绘制顺序里定位元素恒在静态元素之上 ——
        画布把标记圈/名称标签/海域虚线/高精度小岛层全盖住了。这一个 CSS bug 同时造成用户报的
