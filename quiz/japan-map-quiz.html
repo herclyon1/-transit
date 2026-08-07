@@ -104,8 +104,9 @@ SVGSVGElement width/height.baseVal与window.fetch，压缩setTimeout）通过后
   #promptBar .fb{font-size:13px;margin-top:3px;min-height:17px;}
   .fb.good{color:var(--ok);} .fb.bad{color:var(--ng);}
 
-  #stage{position:relative;flex:1;background:var(--sea);}
-  #eaCv{position:absolute;inset:0;display:none;pointer-events:none;}
+  #stage{position:relative;flex:1;background:var(--sea);overflow:hidden;}
+  #eaCv{position:absolute;z-index:0;display:none;pointer-events:none;transform-origin:0 0;}
+  svg#map{position:relative;z-index:1;} /* 必须: 否则绝对定位的画布按CSS绘制顺序盖在静态定位的SVG上 */
   svg{width:100%;height:100%;display:block;touch-action:none;}
   .pref{stroke:#8f9aa5;stroke-width:.8;vector-effect:non-scaling-stroke;cursor:pointer;transition:filter .15s;}
   @media (hover:hover){ .pref:hover{filter:brightness(.93);} }
@@ -510,11 +511,11 @@ d3.json(TOPO_URL).then(topo => {
     .text(d => P[d.properties.id][0].replace(/[県都府]$/,""));
 
   zoom = d3.zoom().scaleExtent([1,14])
-    .on("start", e => { if(e.sourceEvent){ window.__gestT = d3.zoomTransform(svg.node()); eaSetFast(true); } })
+    .on("start", e => { if(e.sourceEvent) window.__gestT = d3.zoomTransform(svg.node()); })
     .on("end", e => { if(e.sourceEvent && window.__gestT){ var c=d3.zoomTransform(svg.node());
         if(Math.abs(c.k-window.__gestT.k)>1e-3||Math.abs(c.x-window.__gestT.x)>2||Math.abs(c.y-window.__gestT.y)>2){
-          zoomStack.push(window.__gestT); if(zoomStack.length>40) zoomStack.shift(); } window.__gestT=null; }
-      eaSetFast(false); eaRefine(); })
+          zoomStack.push({t:window.__gestT, byClick:false}); if(zoomStack.length>40) zoomStack.shift(); } window.__gestT=null; }
+      })
     .on("zoom", e => {
     gRoot.attr("transform", e.transform);
     lastK = e.transform.k;
@@ -523,7 +524,10 @@ d3.json(TOPO_URL).then(topo => {
       .attr("transform", d => `translate(${d.x},${d.y}) scale(${1/lastK})`)
       .style("display", d => d.sz * lastK > 48 ? "none" : null); // 目标已可辨识时隐藏标记
     gSea.selectAll("text").attr("transform", d => `translate(${d.ax},${d.ay}) scale(${1/lastK})`);
-    if(mode==="kyoeiken") eaDraw(); // 画布逐帧重绘(rAF合并); 标签/标记仍走SVG
+    if(mode==="kyoeiken"){ // 运动中只做 GPU 合成跟随, 不重绘; 停手 180ms 才换档+重绘
+      eaFollow();
+      clearTimeout(eaIdleT); eaIdleT=setTimeout(eaRefine, 180);
+    }
   });
   svg.call(zoom).on("dblclick.zoom", null); // 快速答题时双击不应触发缩放
   svg.on("click", e => { // 点海面：清选中描边+关卡；v23b: 逐级退回上一视角（栈空则不动）
@@ -559,17 +563,22 @@ function clearSelection(){
   var el = $("info"); if(el){ el.style.display = "none"; }
 }
 var zoomStack = [];
-function pushZoom(){
+// v27.2: 栈项区分来源。byClick=点击小岛/单元/面板跳转造成的缩放, 才允许"点空白退回";
+// 手动手势缩放只作为历史记录, 不会被空白点击无脑退掉(用户: "直接点击空白处无脑回退"是缺陷)。
+function pushZoom(byClick){
   if(!svg) return;
   var t = d3.zoomTransform(svg.node());
   var last = zoomStack[zoomStack.length-1];
-  if(last && Math.abs(last.k-t.k)<1e-3 && Math.abs(last.x-t.x)<0.5 && Math.abs(last.y-t.y)<0.5) return;
-  zoomStack.push(t); if(zoomStack.length>40) zoomStack.shift();
+  if(last && Math.abs(last.t.k-t.k)<1e-3 && Math.abs(last.t.x-t.x)<0.5 && Math.abs(last.t.y-t.y)<0.5){
+    last.byClick = last.byClick || byClick !== false; return; }
+  zoomStack.push({t:t, byClick: byClick !== false});
+  if(zoomStack.length>40) zoomStack.shift();
 }
+function canPopZoom(){ var e=zoomStack[zoomStack.length-1]; return !!(e && e.byClick); }
 function popZoom(){
-  var t = zoomStack.pop();
-  if(!t) return; // 栈空=不动（不再一刀切回全图）
-  svg.transition().duration(500).call(zoom.transform, t);
+  if(!canPopZoom()) return;   // 顶层不是点击跳转 => 空白点击只清选中, 不动视角
+  var e = zoomStack.pop();
+  svg.transition().duration(500).call(zoom.transform, e.t);
 }
 function resetZoomStack(){ zoomStack = []; window.__gestT = null; }
 function cleanGeom(geom){
@@ -962,7 +971,7 @@ function eaObj(t,name){ const o=EA[t]&&EA[t].objects[name]; return o?topojson.fe
 function eaTargetTier(k){
   let want=0; while(want<EA_TIERS.length-1 && k>EA_TIERS[want].upTo) want++;
   eaWant=want;
-  if(!EA[want]) eaLoad(want,()=>{ if(mode==="kyoeiken") eaApplyTier(); });
+  if(!EA[want]) eaLoad(want,()=>{ if(mode==="kyoeiken"){ eaApplyTier(); eaDraw(); } });
   let use=want; while(use>0 && !EA[use]) use--;
   return EA[use]?use:-1;
 }
@@ -986,10 +995,18 @@ function eaApplyTier(){ // 把 kyoFeats 的几何换成目标档(仅换档时执
   const t=eaTargetTier(d3.zoomTransform(svg.node()).k);
   if(t<0||t===eaTier) return false;
   eaTier=t;
-  const swap=(arr,name)=>{ const idx=new Map(eaObj(t,name).map(f=>[(f.properties&&(f.properties.n?f.properties.a+"|"+f.properties.n:f.properties.dn||f.properties.name))||null,f]));
-    arr.forEach((u,i)=>{ const f=idx.get(u._id)||(u._id.charAt(0)==="#"?eaObj(t,name)[i]:null); if(f) u.geometry=f.geometry; }); };
-  const us=eaObj(t,"units"); const uidx=new Map(us.map(f=>[f.properties.a+"|"+f.properties.n,f]));
-  kyoFeats.units.forEach(u=>{ if(u._tier===9)return; const f=uidx.get(u._id); if(f){ u.geometry=f.geometry; u._tier=t; u._c=null; u._mb=null; } });
+  const swap=(arr,name)=>{ // 注意: eaObj 会解码整层, 每层只许调用一次
+    const src=eaObj(t,name);                                  // (旧版在 forEach 里兜底调用 eaObj,
+    const idx=new Map();                                      //  每个无名湖泊都触发一次全层解码,
+    src.forEach(f=>{ const pr=f.properties||{};                //  实测是换档卡顿数百毫秒的真凶)
+      const k=pr.n?pr.a+"|"+pr.n:(pr.dn||pr.name||null); if(k!==null&&!idx.has(k)) idx.set(k,f); });
+    arr.forEach((u,i)=>{ const f=idx.get(u._id)||(u._id.charAt(0)==="#"?src[i]:null); if(f) u.geometry=f.geometry; }); };
+  // 单元几何按需解码: 换档时只建"名字->topojson几何对象"的索引(不解码),
+  // 真正解码推迟到该单元第一次要画时(见 eaUnitGeom)。否则每换一次档就要解码全部612个单元,
+  // 高档数据下这一下就是几百毫秒的卡顿尖峰。
+  eaUsrc=EA[t]; eaUidx=new Map();
+  EA[t].objects.units.geometries.forEach(g=>eaUidx.set(g.properties.a+"|"+g.properties.n, g));
+  kyoFeats.units.forEach(u=>{ if(u._tier!==9) u._tier=-1; });
   swap(kyoFeats.disp,"disp"); swap(kyoFeats.water,"water"); swap(kyoFeats.rivers,"rivers");
   eaInvalidate();
   return true;
@@ -997,8 +1014,9 @@ function eaApplyTier(){ // 把 kyoFeats 的几何换成目标档(仅换档时执
 function eaViewBox(){ // 视口的经纬包围盒(含60%余量)与投影裁剪框
   const t=d3.zoomTransform(svg.node()), w=$("stage").clientWidth, h=$("stage").clientHeight;
   try{
-    const p0=t.invert([0,0]), p1=t.invert([w,h]);
-    const mx=(p1[0]-p0[0])*.12, my=(p1[1]-p0[1])*.12;
+    const ov=EA_OVER+0.05;
+    const p0=t.invert([-w*ov,-h*ov]), p1=t.invert([w*(1+ov),h*(1+ov)]);
+    const mx=(p1[0]-p0[0])*.05, my=(p1[1]-p0[1])*.05;
     const clip=[[p0[0]-mx,p0[1]-my],[p1[0]+mx,p1[1]+my]];
     const inv=p=>projection.invert(p);
     const cs=[inv(clip[0]),inv([clip[1][0],clip[0][1]]),inv([clip[0][0],clip[1][1]]),inv(clip[1])];
@@ -1020,25 +1038,34 @@ function eaViewBox(){ // 视口的经纬包围盒(含60%余量)与投影裁剪�
 //   · 每帧只画"与视口相交"的单元, 且几何预烘焙为 Path2D(见 eaP2D), 帧内零几何遍历
 //   · 标签/标记/海域/高精度岛群仍走 SVG(数量少, 需要文本与交互)
 // 交互: 单元不再是 DOM 节点, 点击由 svg 空白事件 -> eaHitTest(球面 point-in-polygon, 先按bbox过滤)
-let eaCtx=null, eaGeoPath=null, eaSel=null, eaRAF=0;
+let eaCtx=null, eaGeoPath=null, eaSel=null, eaRAF=0, eaUidx=null, eaUsrc=null;
 function eaInitCanvas(){
   if(eaCtx) return;
   eaCtx=$("eaCv").getContext("2d");
   eaGeoPath=d3.geoPath(projection, eaCtx);
 }
-// 手势期间降分辨率: 实测帧时里 JS 只占约 10ms, 其余全是浏览器光栅化画布像素,
-// 而光栅成本正比于像素数。手势中按 0.5 倍后备缓冲绘制再由 CSS 拉伸(像素数 1/4),
-// 松手后立刻按全分辨率重绘 —— 停下来看的画面始终是清晰的。
-let eaFast=false;
+// 运动中不重绘画布, 只给画布元素套一个 CSS 变换让 GPU 合成器去缩放位移(几乎零成本),
+// 停手后再按新视角重绘一次 —— 这正是 SVG 时代"改一次 transform 全图跟着动"的等价物,
+// 但没有 SVG 的 DOM/布局开销。运动中放大会短暂发虚, 停手立刻变清晰。
+// 画布比舞台四周各多画 EA_OVER 比例, 这样缩小/平移时不会立刻露出空白边。
+const EA_OVER=0.22;
+let eaIdleT=0, eaBaseT=null;
 function eaResize(){
   const cv=$("eaCv"), w=$("stage").clientWidth, h=$("stage").clientHeight;
-  const dpr=Math.min(window.devicePixelRatio||1, 2)*(eaFast?0.5:1); // 上限2: 3x屏再翻倍光栅面积不划算
-  cv.width=Math.round(w*dpr); cv.height=Math.round(h*dpr);
-  cv.style.width=w+"px"; cv.style.height=h+"px"; cv._dpr=dpr;
+  const dpr=Math.min(window.devicePixelRatio||1, 2); // 上限2: 3x屏再翻倍光栅面积不划算
+  const ox=Math.round(w*EA_OVER), oy=Math.round(h*EA_OVER);
+  const cw=w+ox*2, ch=h+oy*2;
+  cv.width=Math.round(cw*dpr); cv.height=Math.round(ch*dpr);
+  cv.style.width=cw+"px"; cv.style.height=ch+"px";
+  cv.style.left=(-ox)+"px"; cv.style.top=(-oy)+"px";
+  cv._dpr=dpr; cv._ox=ox; cv._oy=oy;
 }
-function eaSetFast(on){
-  if(mode!=="kyoeiken"||eaFast===on||!eaCtx) return;
-  eaFast=on; eaResize(); eaDraw();
+function eaFollow(){ // 把画布贴图从"绘制时的视角"变换到"当前视角"
+  const cv=$("eaCv"); if(!eaBaseT||!cv) return;
+  const t=d3.zoomTransform(svg.node()), s=t.k/eaBaseT.k;
+  if(Math.abs(s-1)<1e-6 && Math.abs(t.x-eaBaseT.x)<0.01 && Math.abs(t.y-eaBaseT.y)<0.01){ cv.style.transform=""; return; }
+  const dx=t.x-s*eaBaseT.x, dy=t.y-s*eaBaseT.y;
+  cv.style.transform="translate("+dx+"px,"+dy+"px) scale("+s+")";
 }
 function eaDraw(){ if(!eaRAF) eaRAF=requestAnimationFrame(eaDrawNow); } // 手势内多次事件合并成一帧
 function eaShown(f){ return f.properties.grp==="JPN" || !kyoHidden[f.properties.grp]; }
@@ -1054,11 +1081,16 @@ function eaCell(){
   return { key: eaTier+"|"+Math.round(Math.log2(t.k)*3)+"|"+cx+"|"+cy,
            rect: [[cx*gx-gx, cy*gy-gy],[(cx+2)*gx, (cy+2)*gy]] }; // 必覆盖当前视口
 }
+function eaUnitGeom(u){ // 懒解码到当前档
+  if(!u||u._tier===9||u._tier===eaTier||!eaUidx) return;
+  const g=eaUidx.get(u._id);
+  if(g){ u.geometry=topojson.feature(eaUsrc,g).geometry; u._c=null; u._mb=null; u._pk=null; }
+  u._tier=eaTier;
+}
 function eaP2D(f,key){
   if(f._pk === key) return f._p2d;
-  // 手势进行中不重新烘焙: 缓存范围有 3x3 视口, 一次手势极少跑出去; 宁可边缘暂时略旧,
-  // 也不要在拖动中卡出一帧几百毫秒的尖峰。松手时 eaSetFast(false) 会整体重建。
-  if(eaFast && f._pk) return f._p2d;
+  // 运动进行中不重新烘焙(缓存范围有 3x3 视口), 停手后的那次重绘才整体重建。
+  if(eaIdleT && f._pk) return f._p2d; // 运动中不重烘焙
   const d = path(f); f._p2d = d ? new Path2D(d) : null; f._pk = key; return f._p2d;
 }
 function eaInvalidate(){ // 换档或换投影后必须清缓存
@@ -1069,16 +1101,17 @@ function eaDrawNow(){
   eaRAF=0;
   if(mode!=="kyoeiken"||!kyoFeats||!eaCtx) return;
   const cv=$("eaCv"), c=eaCtx, t=d3.zoomTransform(svg.node()), dpr=cv._dpr||1;
+  cv.style.transform=""; eaBaseT=t;   // 本帧按当前视角绘制, 贴图变换归零
   c.setTransform(1,0,0,1,0,0); c.clearRect(0,0,cv.width,cv.height);
   const v=eaViewBox(), vb=v?v.vb:null;
   const hit=g=>!vb||!g||!(g[2]<vb[0]||vb[2]<g[0]||g[3]<vb[1]||vb[3]<g[1]);
   const cell=eaCell(), CK=cell.key, savedClip=projection.clipExtent();
   projection.clipExtent(cell.rect); // 只在烘焙 Path2D 期间生效
-  c.setTransform(dpr*t.k,0,0,dpr*t.k,dpr*t.x,dpr*t.y);
+  c.setTransform(dpr*t.k,0,0,dpr*t.k,dpr*(t.x+cv._ox),dpr*(t.y+cv._oy));
   const lw=n=>n/t.k; // 非缩放描边
   c.lineJoin="round"; c.lineCap="round";
   c.strokeStyle="#5f5348"; c.lineWidth=lw(.45);
-  kyoFeats.units.forEach(u=>{ if(!eaShown(u)||!hit(u._gb)) return; const p2=eaP2D(u,CK); if(!p2) return;
+  kyoFeats.units.forEach(u=>{ if(!eaShown(u)||!hit(u._gb)) return; eaUnitGeom(u); const p2=eaP2D(u,CK); if(!p2) return;
     c.fillStyle = u.properties.grp==="JPN" ? JP_FILL : (KYO_COLORS[u.properties.grp]||"#ccc");
     c.fill(p2); c.stroke(p2); });
   c.fillStyle="#bcd8ec"; c.strokeStyle="#9dc2dd"; c.lineWidth=lw(.5);
@@ -1106,10 +1139,11 @@ function eaHitTest(px,py){ // 屏幕坐标 -> 单元(bbox预筛 + d3.geoContains
   for(let i=kyoFeats.units.length-1;i>=0;i--){ const u=kyoFeats.units[i];
     if(!eaShown(u)) continue;
     const g=u._gb; if(!g||ll[0]<g[0]-.01||ll[0]>g[2]+.01||ll[1]<g[1]-.01||ll[1]>g[3]+.01) continue;
+    eaUnitGeom(u);
     if(d3.geoContains(u,ll)) return u; }
   return null;
 }
-function eaRefine(){ eaApplyTier(); eaDraw(); }
+function eaRefine(){ clearTimeout(eaIdleT); eaIdleT=0; eaApplyTier(); eaDrawNow(); }
 function eaSetup(){ // 进入東亜: 画布就位 + 争议区标注锚点(投影已定)
   if(!kyoFeats) return;
   eaInitCanvas(); eaResize(); $("eaCv").style.display="block";
@@ -1173,6 +1207,7 @@ function drawHist(kind){
   return {feats: kyoFeats.units, shown};
 }
 function zoomToHistFeat(f){
+  if(mode==="kyoeiken") eaUnitGeom(f);
   const b = path.bounds(f);
   const w = $("stage").clientWidth, h = $("stage").clientHeight;
   const k = Math.min(60, Math.max(1, .35/Math.max((b[1][0]-b[0][0])/w, (b[1][1]-b[0][1])/h)));
@@ -1488,6 +1523,25 @@ v18: 修海域线切陆bug（邻国缓冲侵入本方海岸→加0.3°保护带�
 v19: 高精度岛扩至九组（硫黄・大東・小笠原・西沙・南沙均为OSM实测海岸线）；海域改画
      边界线且陆界接壤段剔除、邻国陆地洞环保留（根治歯舞色丹切陆）；大日本新增接壤
      外国陆地白色剪影层；名称标签全局化（三面板通用，缩放自适应显隐）
+v27.2: 用户真机反馈六连修（都是 v27 引入的回归或未尽之处，全部真机模拟复现后再修）：
+     ①【图层被埋】画布是绝对定位、SVG 是静态定位，CSS 绘制顺序里定位元素恒在静态元素之上 ——
+       画布把标记圈/名称标签/海域虚线/高精度小岛层全盖住了。这一个 CSS bug 同时造成用户报的
+       "标记的字渲染有问题""点击缩放失效""放大看小岛时小岛固定很小"(小岛轮廓在被盖住的SVG层里，
+       看得到的只有固定大小的标记圈)。修法: #eaCv{z-index:0} + svg#map{position:relative;z-index:1}。
+     ②【高精度不生效】高档数据到货后只换了几何、没有重绘画布 —— 用户放大后停手, t1/t2 下载完成
+       却不刷新, 于是永远停在最低档。加上重绘即解。
+     ③【换档卡死】eaApplyTier 的 swap() 在 forEach 内兜底调用 eaObj(整层解码), 每个无名湖泊触发一次
+       全层解码, 上百次 —— 这是"点击缩放巨卡"的真凶。改为每层只解码一次; 单元几何进一步改为
+       按需逐个解码(eaUnitGeom), 换档不再一次性解码全部612个单元。
+     ④【运动中卡顿】运动中不再重绘画布, 只给画布元素套 CSS 变换让 GPU 合成器缩放位移(等价于 SVG
+       时代改一次 transform 全图跟着动), 停手 180ms 才按新视角重绘一次。画布四周多绘 22% 以免
+       缩小时露白边。实测(4x降速手机): 连续快速滚轮 max 492→74ms, 点击缩放过渡 p90 427→74ms。
+     ⑤【空白点击无脑退回】缩放栈区分来源: 只有点击小岛/单元/面板造成的跳转才允许"点空白退回",
+       手动手势缩放只记录不退回(用户: "直接点击空白处无脑回退"是缺陷)。
+     ⑥【零宽度尖刺】数据层: CGAZ 多边形里存在"原路折返"的零宽度尖刺(相邻两边夹角>177°、垂距<200m),
+       渲染出来就是一条凭空插进邻国境内的直线 —— 亚东/不丹北界那条即是(西藏环上一处尖刺, 垂距仅29m)。
+       按面积判断的简化算法保不掉它(尖刺三角形很大, 只是极扁)。新增 despike 专项清理:
+       全图去除 442 个尖刺顶点(涉及313个环), 总面积变化 -0.000003%; 西藏与廷布宗现共用同一条边界。
 v27: 卡顿根治 + 屎山清扫 + 锡金按外部数据重建(用户: "自建修复结果就是永远修不好, 找别人做好的")。
      ①【屎山】ADMIN1常量3.37MB=旧版JS的95%, 内联导致手机每次开页阻塞解析(4x降速实测首屏30.2秒)。
        外置为 admin1.topojson 且只有大日本模式才取; MNP并入ea数据。HTML 3.55MB→290KB(-92%), 首屏30.2s→2.0s。
