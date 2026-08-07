@@ -1054,7 +1054,7 @@ let eaIdleT=0;
 function eaResize(low){
   const cv=$("eaCv"), w=$("stage").clientWidth, h=$("stage").clientHeight;
   // 运动中的重绘用 0.55 倍后备缓冲(像素数约1/3), 停手后的那次重绘才用全分辨率 —— 停下看到的始终清晰
-  const dpr=Math.min(window.devicePixelRatio||1, 2)*(low?0.55:1); // 上限2: 3x屏再翻倍光栅面积不划算
+  const dpr=Math.min(window.devicePixelRatio||1, 2)*(low?0.42:1); // 上限2: 3x屏再翻倍光栅面积不划算
   const ox=Math.round(w*EA_OVER), oy=Math.round(h*EA_OVER);
   const cw=w+ox*2, ch=h+oy*2;
   cv.width=Math.round(cw*dpr); cv.height=Math.round(ch*dpr);
@@ -1089,14 +1089,14 @@ function eaUnitGeom(u){ // 懒解码到当前档
   if(g){ u.geometry=topojson.feature(eaUsrc,g).geometry; u._c=null; u._mb=null; u._pk=null; }
   u._tier=eaTier;
 }
-let eaBakeLeft=0, eaBakeMore=false;
+let eaBakeMore=false, eaFrameT0=0, eaBakeMs=8;
 function eaP2D(f,key){
   if(f._pk === key) return f._p2d;
   if(eaIdleT && f._pk) return f._p2d;   // 运动进行中不重新烘焙
-  // 分帧渐进烘焙: 换档要重烘焙视口内全部单元, 一次做完实测能卡 1.3 秒(用户所说的"巨卡")。
-  // 每帧只烘焙有限个, 其余先沿用上一档的图形(两档几何相差极小, 一两帧内看不出来), 下一帧继续。
-  if(eaBakeLeft<=0 && f._p2d!==undefined){ eaBakeMore=true; return f._p2d; }
-  eaBakeLeft--; // 运动中不重烘焙
+  // 分帧渐进烘焙, 预算按"时间"而不是"个数": 几何越重单帧能烘的越少, 帧时上限恒定。
+  // 换档时要重烘焙视口内全部单元, 一次做完实测卡 0.7~1.3 秒(用户所说的"巨卡")。
+  // 超预算的单元先沿用上一档图形(两档几何相差极小, 一两帧内看不出来), 下一帧继续。
+  if(f._p2d!==undefined && (performance.now()-eaFrameT0)>eaBakeMs){ eaBakeMore=true; return f._p2d; } // 运动中不重烘焙
   const d = path(f); f._p2d = d ? new Path2D(d) : null; f._pk = key; return f._p2d;
 }
 function eaInvalidate(){ // 换档或换投影后必须清缓存
@@ -1118,7 +1118,7 @@ function eaDrawNow(){
   c.setTransform(1,0,0,1,0,0); c.clearRect(0,0,cv.width,cv.height);
   const v=eaViewBox(), vb=v?v.vb:null;
   const hit=g=>!vb||!g||!(g[2]<vb[0]||vb[2]<g[0]||g[3]<vb[1]||vb[3]<g[1]);
-  eaBakeLeft = eaIdleT ? 14 : 26; eaBakeMore=false;   // 运动中更保守
+  eaFrameT0=performance.now(); eaBakeMs = eaIdleT ? 7 : 12; eaBakeMore=false; // 运动中更保守
   const cell=eaCell(), CK=cell.key, savedClip=projection.clipExtent();
   projection.clipExtent(cell.rect); // 只在烘焙 Path2D 期间生效
   c.setTransform(dpr*t.k,0,0,dpr*t.k,dpr*(t.x+cv._ox),dpr*(t.y+cv._oy));
@@ -1545,6 +1545,20 @@ v18: 修海域线切陆bug（邻国缓冲侵入本方海岸→加0.3°保护带�
 v19: 高精度岛扩至九组（硫黄・大東・小笠原・西沙・南沙均为OSM实测海岸线）；海域改画
      边界线且陆界接壤段剔除、邻国陆地洞环保留（根治歯舞色丹切陆）；大日本新增接壤
      外国陆地白色剪影层；名称标签全局化（三面板通用，缩放自适应显隐）
+v27.5: 精度真因排查（用户: "蒙古中国放大没有高精度, 默认精度极差"）。逐层量化后确认是两个独立问题:
+     ①【我的分档把国界削掉了】mapshaper 的 -simplify interval 是面积阈值, 不是段长, 我严重低估了它。
+       实测中蒙国界: 源数据段长中位 91m, 而我的 t0=6422m / t1=1469m / t2=472m —— 连最高档都比源粗5倍。
+       重定分档: t0 interval=300(中位1469m, 够k≤5) / t1=70(413m, 够k≤30) / t2=25(188m)。
+       t2 曾试过零简化(92m=源), 但极重几何使点击缩放 p90 从 74ms 涨到 405ms, 折中取 25。
+     ②【省界在源数据里就是坏的, 不是渲染问题】CGAZ 是"全球边匹配"产品, 国界与海岸线是精细的
+       (中蒙界91m / 中印界59m / 粤海岸300m), 但内部省界被大幅简化: 北京8个顶点、重庆14、江西16、
+       湖北19、四川31, 段长中位十万米量级; 蒙古内部省界约8km。所以放大再多也没有细节可加载 ——
+       数据里根本没有。已比对全部候选源: gbOpen中国ADM1更粗(34单元共5893顶点)、CGAZ县级也粗(16.8km)、
+       NE 10m 与 DataV 均约3.3~3.8km、只有 OSM 达到121m(实测内蒙古30763顶点)。
+       蒙古已用官方 gbOpen ADM2(339苏木, 段长中位101m)重建省界; 中国待 OSM 抓取(Overpass 限流中)。
+       重建时国界一律保持 CGAZ 不动(它本来就精细且边匹配), 只替换内部省界。
+     另: 烘焙预算由"个数"改为"时间"(运动中7ms/帧), 几何越重单帧烘得越少, 帧时上限恒定;
+     运动中后备缓冲降到 0.42 倍。
 v27.4: 抖动/卡顿根治 + 建立"真人会话"验收（用户: "我点不到10秒就能发现严重问题，你在质检什么"）。
      先认根因: 不是数据, 是我的验收测错了东西 —— 一直用程序化 zoom.transform(不带 sourceEvent,
      走的是和真实手势不同的分支) + 桌面视口 + 数据审计, 而用户的 bug 全是"手机上正常点几下就能看见"的
