@@ -993,28 +993,19 @@ function drawHist(kind){
   }
   if(!kyoFeats) kyoFeats = buildKyo();
   const shown = kyoFeats.units.filter(f => f.properties.grp === "JPN" || !kyoHidden[f.properties.grp]);
-  const bgShown = (kyoFeats.bg||[]).filter(b => !kyoHidden[b.grp]); // v23b:融合背景桥接白缝
-  // v24: 统一中性陆地底——垫在所有前景/背景之下,国界处任何AA缝只透出这一层同色陆地(不再是白/蓝/绿)
-  gLandBg.style("display",null).selectAll("path").data([kyoFeats.landAll]).join("path")
-    .attr("d", d=>path(d))
-    .attr("fill", LAND_BG).attr("stroke", LAND_BG).attr("stroke-width", 1.2)
-    .attr("vector-effect","non-scaling-stroke").attr("stroke-linejoin","round").attr("pointer-events","none");
-  gWorldBg.style("display",null).selectAll("path").data(bgShown, d=>d.grp).join("path")
-    .attr("d", d=>path(d.geometry))
-    .attr("fill", d=> KYO_COLORS[d.grp] || JP_FILL)
-    .attr("stroke", d=> KYO_COLORS[d.grp] || JP_FILL)
-    // v24: 各国背景描边改不随缩放1.2px(原.7~8随缩放放大→深缩放侵入邻国漏绿);省界缝仍由本国同色背景盖住,国界缝落到统一陆地底
-    .attr("stroke-width", 1.2).attr("vector-effect","non-scaling-stroke")
-    .attr("stroke-linejoin","round").attr("stroke-linecap","round").attr("pointer-events","none");
-  // v24: 本国同色光晕层——每单元用自身填充色描边,相邻各向外扩本国色填满缝;深色国界线画其上。
+  // v24c性能精简:废除gLandBg(1MB巨路径)与gWorldBg的kyo渲染(27条融合大路径)——halo已覆盖二者补缝职能,实测缝指标不回退
+  gLandBg.style("display","none").selectAll("path").remove();
+  gWorldBg.style("display","none").selectAll("path").remove();
+  // v24: 本国同色光晕层——每单元用自身填充色描边(fill:none,填充与前景重复纯浪费),相邻各向外扩本国色填满缝;深色国界线画其上。
   // 普通国：非缩放1.5px 只补抗锯齿发丝缝；尼/不/孟(0.008简化边与邻国ADMIN1真空隙≤0.30°)：缩放描边随放大变宽,填满真空隙,多余部分由邻国前景裁掉。
+  // v24c: JPN(s0010高精度,最重几何)跳过halo——日の丸白与浅蓝海AA缝对比度极低,肉眼不可见,省掉47条最重路径的双份渲染
   const SUB_GAP = {NPL:1, BTN:1, BGD:1};
   gHalo.style("display",null).selectAll("path")
-    .data(shown, d => d.properties.a + "|" + d.properties.n)
+    .data(shown.filter(d => d.properties.grp !== "JPN"), d => d.properties.a + "|" + d.properties.n)
     .join("path")
     .attr("d", path)
-    .attr("fill", d => d.properties.grp === "JPN" ? JP_FILL : KYO_COLORS[d.properties.grp])
-    .attr("stroke", d => d.properties.grp === "JPN" ? JP_FILL : KYO_COLORS[d.properties.grp])
+    .attr("fill", "none")
+    .attr("stroke", d => KYO_COLORS[d.properties.grp])
     .attr("stroke-width", d => SUB_GAP[d.properties.grp] ? 6 : 1.5)
     .attr("vector-effect", d => SUB_GAP[d.properties.grp] ? null : "non-scaling-stroke")
     .attr("stroke-linejoin","round").attr("stroke-linecap","round").attr("pointer-events","none");
@@ -1341,6 +1332,13 @@ v18: 修海域线切陆bug（邻国缓冲侵入本方海岸→加0.3°保护带�
 v19: 高精度岛扩至九组（硫黄・大東・小笠原・西沙・南沙均为OSM实测海岸线）；海域改画
      边界线且陆界接壤段剔除、邻国陆地洞环保留（根治歯舞色丹切陆）；大日本新增接壤
      外国陆地白色剪影层；名称标签全局化（三面板通用，缩放自适应显隐）
+v24c: 東亜性能优化(用户报"唯独東亜卡")：真Chromium量化=缩放期帧耗时333ms(3FPS),路径1414条/d字符848万。
+     三刀:①废除gLandBg统一陆地底(单路径d=100万字符)与gWorldBg各国融合背景27条大路径的kyo渲染——halo层已完全
+     覆盖两者补缝职能(缝指标实测零回退);②halo改fill:none(填充被前景同几何完全遮盖,纯浪费光栅化);③JPN跳过halo
+     (s0010市町村级47条=最重几何,日の丸白与浅蓝海AA缝对比度极低肉眼不可见)。结果:缩放帧16.7ms满60FPS,d字符-34%。
+     另:程序化边界审计(borderaudit,同国相邻单元顶点距离0.001~0.025°判偏移)发现8对真实"平行双线"缺陷,全部位于
+     v21 geoBoundaries手术单元与NE邻省接缝:缅甸4对(曼德勒周边/内比都切割)、印尼2对(巴布亚2022新省/北加里曼丹)、
+     老挝2对(赛宋本周边);根治需将这些国家内线统一重建自单一数据源(未实施,待用户决策——会微调边界形状)。
 v24b: 東亜整体崩坏双根修（用户报"东亚界面更崩坏",真Chromium全图渲染证实海洋被涂成国家绿+西侧大片错位红）：
      ①投影同步：enterHist的fitExtent重投影只更新gWorld/gCtx,v23b新增的gWorldBg从未重投影——背景层全部画在旧投影
      (日本视图)位置=CHN红块跑到画面西侧的直接原因;现fit后同步重投影gWorldBg/gLandBg/gHalo。②球面绕向:dissolveRings
