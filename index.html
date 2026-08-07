@@ -12,13 +12,14 @@
 :root{--bg:#0e0f12;--fg:#e8e8e8;--sub:#9aa0a8;--line:#2a2d33;--panel:#16181df2;
   --panelbd:#333;--pop:#1c1f25;--popfg:#eee;--popdim:#9aa0a8;--acc:#ffd54f;
   --track:#fff;--trackop:0.30;--dim:#5b626c;--dimbd:#3a3f47;--ring:#fff;
-  --shadow:0 1px 3px #000;--btn:#22252c;--accfg:#1b1500}
-/* 浅色の強調色は暗色の金をそのまま暗くすると土色に濁る。
-   琥珀(#b45309, 白地でコントラスト4.5:1)に振り、上に載せる文字は白にする */
+  --shadow:0 1px 3px #000;--btn:#22252c;--accfg:#1b1500;--accTxt:#ffd54f}
+/* 浅色の強調は二段構え: 黄系を白地で読める明度まで落とすと必ず土色に濁るので、
+   塗り・図形(選択ボタン/スライダー/菱形)は鮮やかな橙 --acc、
+   白地に載る小さい文字だけ一段濃い --accTxt を使う（大きい塗りは4.5:1不要） */
 html[data-theme=light]{--bg:#f7f7f9;--fg:#1b1e23;--sub:#5a626c;--line:#d9dde3;
   --panel:#fffffff2;--panelbd:#c9ced6;--pop:#fff;--popfg:#1b1e23;--popdim:#6b7280;
-  --acc:#b45309;--accfg:#fff;--track:#6b7480;--trackop:0.55;--dim:#aab1ba;
-  --dimbd:#868d96;--ring:#1b1e23;--shadow:0 1px 3px #0003;--btn:#eef0f3}
+  --acc:#e8590c;--accTxt:#c2410c;--accfg:#fff;--track:#6b7480;--trackop:0.55;
+  --dim:#aab1ba;--dimbd:#868d96;--ring:#1b1e23;--shadow:0 1px 3px #0003;--btn:#eef0f3}
 html,body{margin:0;height:100%;background:var(--bg);color:var(--fg);
   font-family:'Noto Sans CJK SC','Hiragino Sans','Yu Gothic',sans-serif}
 #hdr{padding:8px 12px 6px;background:var(--bg);border-bottom:1px solid var(--line);
@@ -54,7 +55,7 @@ button{font-family:inherit;cursor:pointer;background:var(--btn);color:var(--fg);
   box-shadow:0 2px 10px #0003}
 #bar .top{display:flex;align-items:center;justify-content:space-between;font-size:12px;
   font-weight:700}
-#bar .val{color:var(--acc)}
+#bar .val{color:var(--accTxt)}
 input[type=range]{width:100%;margin:3px 0 5px;accent-color:var(--acc)}
 .tg{display:flex;align-items:center;gap:6px;font-size:12px;cursor:pointer;padding:2px 0}
 #stat{color:var(--sub);font-size:10.5px;margin-top:4px;line-height:1.45}
@@ -154,7 +155,12 @@ const HUB_LL = {'梅田':[34.7025,135.4959],'難波':[34.6636,135.5008],
 const PROV_LABEL = {measured:'实测', anchored:'锚定', borrowed:'借用估算'};
 const cssvar = n => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
 
-const map = L.map('map',{zoomControl:false}).setView([34.66,135.52],11);
+// closePopupOnClick を切る理由: モバイルの長押し(contextmenu)の指離しで
+// ブラウザが click を合成することがあり、開いた瞬間のピンpopupがその click で
+// 即閉じていた（「長押ししても何も出ない」重大バグの正体その2）。
+// popup は ✕ か別popupを開くことで閉じる。
+const map = L.map('map',{zoomControl:false, closePopupOnClick:false})
+  .setView([34.66,135.52],11);
 L.control.zoom({position:'bottomright'}).addTo(map);
 const TILES = {dark:'dark_all', light:'light_all'};
 let tiles = null;
@@ -791,7 +797,7 @@ function pointQuery(ll){
     if(!WALK) h += '<div style="margin-top:4px;color:'+dim+';font-size:11px">'
                  + '路网等时圈载入中，本次为直线估算</div>';
   }
-  L.popup({maxWidth:280, offset:[0,-26]}).setLatLng(ll).setContent(h).openOn(map);
+  return h;
 }
 // 長押し(モバイル)/右クリック(PC)でピンを立てて調べる。普通のタップは
 // 地図操作・駅ポップアップと衝突するので使わない —— 一般の地図アプリと同じ作法。
@@ -801,14 +807,21 @@ const pinIcon = L.divIcon({className:'', iconSize:[26,34], iconAnchor:[13,32],
       +'<path d="M13 1C6.4 1 1 6.4 1 13c0 8.5 12 20 12 20s12-11.5 12-20C25 6.4 19.6 1 13 1z"'
       +' fill="#e5484d" stroke="#00000066" stroke-width="1.5"/>'
       +'<circle cx="13" cy="13" r="4.5" fill="#fff"/></svg>'});
-let pin = null;
+let pin = null, pinPopup = null;
 map.on('contextmenu', e=>{
   if(!DATA) return;
-  if(pin) map.removeLayer(pin);
+  if(pin){ map.removeLayer(pin); pin = null; }
   pin = L.marker(e.latlng, {icon: pinIcon, interactive:false}).addTo(map);
-  pointQuery(e.latlng);
+  // 先に pinPopup を差し替えてから開く。openOn は旧popupを閉じて
+  // popupclose を発火させるが、下の同一性チェックで新ピンは巻き込まれない
+  // （以前は無条件で pin を消していて、2回目以降の長押しが必ず空振りしていた）
+  pinPopup = L.popup({maxWidth:280, offset:[0,-26]})
+    .setLatLng(e.latlng).setContent(pointQuery(e.latlng));
+  pinPopup.openOn(map);
 });
-map.on('popupclose', ()=>{ if(pin){ map.removeLayer(pin); pin = null; } });
+map.on('popupclose', e=>{
+  if(pin && e.popup === pinPopup){ map.removeLayer(pin); pin = null; pinPopup = null; }
+});
 
 const info=document.getElementById('info'), more=document.getElementById('more');
 function setInfo(open){
