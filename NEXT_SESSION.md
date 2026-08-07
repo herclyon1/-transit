@@ -1,5 +1,17 @@
 # 下一会话交接单
 
+> **2026-08-07 追加（quiz v27 大修 + 仓库清扫）**
+> - quiz/japan-map-quiz.html 从 3.55MB 瘦到 294KB：ADMIN1 外置为 quiz/admin1.topojson（只有大日本模式懒加载）。
+> - 東亜地图改 Canvas 渲染（`#eaCv`），几何预烘焙 Path2D；单元不再是 DOM 节点，点击走 eaHitTest。
+>   数据为 geoBoundaries CGAZ 三档 LOD：quiz/ea_t0|t1|t2.topojson（1500m/300m/80m），
+>   内含 units / disp / water / rivers 四个图层。**分档必须全局统一，不可按单元混档**（会出缝）。
+> - 性能基线（4x 降速手机模拟 390x844）：首屏 < 2.1s、k=30 拖动帧 p50 ≈ 25ms。
+>   复测脚本思路见 quiz 文件头注释；超过 33ms 视为回归。
+> - 已删除死文件约 91MB：admin/archive-japan_admin_map_mobile.html（被拒绝的阉割手机版）、
+>   quiz/archive/ 十个旧版、大阪车站线路叠加图_v0.html。全部可从 git 历史取回。
+> - transit / admin / osaka-residence-tiers 三页已逐页浏览器验收：零 JS 报错、零 404。
+
+
 把这份文件 + `HANDOFF.md` 一起给下个会话读。分支 `claude/handoff-review-plan-dvfspv`，
 所有产出已推送到 GitHub，Pages 已开（`https://herclyon1.github.io/-transit/`）。
 
