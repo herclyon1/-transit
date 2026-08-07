@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>日本地理工具集</title>
+<style>
+:root{--ink:#1B2433;--soft:#33415C;--paper:#E9EDF0;--panel:#FFF;--line:#C9D2DB;--accent:#B3541E;--hover:#2E6E8E;--muted:#6B7688;}
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:'Noto Sans JP','Hiragino Sans','Microsoft YaHei',system-ui,sans-serif;background:var(--paper);color:var(--ink);min-height:100vh;display:flex;flex-direction:column;align-items:center;padding:32px 16px}
+header{width:100%;max-width:680px;margin-bottom:28px}
+header .kicker{font-size:12px;font-weight:700;letter-spacing:.22em;color:var(--muted);margin-bottom:6px}
+header h1{font-size:28px;font-weight:900}
+.cards{width:100%;max-width:680px;display:flex;flex-direction:column;gap:14px}
+a.card{display:block;background:var(--panel);border:1px solid var(--line);border-left:5px solid var(--ink);box-shadow:0 2px 10px rgba(20,30,50,.10);padding:18px 20px;text-decoration:none;color:inherit;transition:transform .12s, box-shadow .12s}
+a.card:hover{transform:translateY(-2px);box-shadow:0 6px 18px rgba(20,30,50,.16);border-left-color:var(--hover)}
+a.card h2{font-size:19px;font-weight:900;margin-bottom:5px}
+a.card p{font-size:13.5px;color:var(--soft);line-height:1.6}
+a.card .tag{display:inline-block;font-size:11px;font-weight:700;letter-spacing:.14em;color:#fff;background:var(--ink);padding:2px 9px;border-radius:2px;margin-bottom:8px}
+a.card.quiz{border-left-color:var(--accent)}
+footer{margin-top:36px;font-size:11.5px;color:var(--muted)}
+@media (max-width:480px){header h1{font-size:22px} a.card h2{font-size:17px}}
+</style>
+</head>
+<body>
+<header>
+  <div class="kicker">JAPAN GEO TOOLS</div>
+  <h1>日本地理工具集</h1>
+</header>
+<div class="cards">
+  <a class="card quiz" href="quiz/japan-map-quiz.html">
+    <span class="tag">QUIZ</span>
+    <h2>日本都道府県クイズ</h2>
+    <p>47 县地理测验（浏览 / 闯关 / 混考）+ 大日本・東亜历史版图浏览。含高精度小岛、海域范围、逐级缩放。</p>
+  </a>
+  <a class="card" href="admin/japan_admin_map_v2.html">
+    <span class="tag">MAP</span>
+    <h2>日本行政区分図</h2>
+    <p>全国 → 都道府県 → 市区町村 → 町丁目，逐级钻取。数据按县懒加载（点开哪个县才下载哪个县，手机也流畅）。</p>
+  </a>
+  <a class="card" href="osaka-residence-tiers.html">
+    <span class="tag">OSAKA</span>
+    <h2>大阪府居住等级图</h2>
+    <p>大阪府居住区域等级可视化。</p>
+  </a>
+</div>
+<footer>数据：国土数値情報 N03 / 令和2年国勢調査 (e-Stat) / Natural Earth / OSM</footer>
+</body>
+</html>
