@@ -82,11 +82,11 @@ prov 是「路径上最差出典」，所以只要沾一段 borrowed 整站就�
 这么来的。要把绝大多数站变成实测级，只有拿真值：**842站×4枢纽=3368 组 OD 查询**，
 取平日日中出发的最短所要时间，一次性抓完缓存进 repo，之后不再依赖 API。
 
-- **首选 Google Routes API**（computeRoutes, travelMode=TRANSIT）：大阪轨道数据全，
-  个人可开通，3368 次查询大概率落在每月免费额度内，超也只是十几美元级。
-  需要：Google Cloud 项目开 Routes API 的 key
-- **备选 駅すぱあと(Ekispert) Web API**：日本时刻表级精度、能拿运赁/定期,
-  有免费试用枠，但申请流程偏商务
+- ~~Google Routes API~~ **已证伪**（见死路清单）
+- **首选 NAVITIME (RapidAPI)**：注册即时出 key，Route(totalnavi)/Route(transit)
+  端点带逐段时刻，可比口径同样成立；全量成本估计 $10-30 级
+- **备选 駅すぱあと(Ekispert) Web API**：最准+免费枠+能拿运赁/定期（服务于
+  未来的定期券维度），但申请表单要等审核几天
 - 抓回来后：t_default 直接换成 API 值（保留模型值做 diff 报告），prov 加
   `api` 等级，⚡/💴 语义按 API 返回的种别重标。工作量约半个会话
 - 顺带能校准：JR宝塚線・環状線快速这些缺优等停站型的线（现在偏高估）
@@ -118,6 +118,10 @@ Leaflet 换本地文件，`python3 -m http.server` 起服务。
 
 ## 已经确认过、别再重走的死路
 
+- **Google Routes API 查日本公共交通**：computeRoutes TRANSIT 对日本全境返回
+  空对象（新宿→東京駅都为空；同 key 伦敦正常，2026-08 实测）。日本换乘数据
+  只授权消费者版 Google Maps，API 不开放。fetch_truth.py 的骨架保留，
+  换 provider 时改 query() 即可
 - **GTFS**：gtfs-data.jp 全量 547 feed，大阪府只有 1 条高速巴士。2026-08 实测
 - **Overpass 拉全府步行路网**：必被限流。等时圈用 Valhalla 接口，路网都不用碰
 - **自建行人图（pbf+pyrosm）**：没必要，公共 Valhalla 等时圈接口

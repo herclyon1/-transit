@@ -55,6 +55,10 @@ button{font-family:inherit;cursor:pointer;background:var(--btn);color:var(--fg);
   box-shadow:0 2px 10px #0003}
 #bar .top{display:flex;align-items:center;justify-content:space-between;font-size:12px;
   font-weight:700}
+/* 折りたたみ: 常用の閾値スライダーだけ残して他を隠す（モバイルの画面占有対策） */
+#fold{padding:1px 7px;font-size:11px;margin-left:6px}
+#bar.mini #minhub,#bar.mini .tg,#bar.mini #walkWrap,#bar.mini #stat,
+#bar.mini #areastat,#bar.mini #more{display:none}
 #bar .val{color:var(--accTxt)}
 input[type=range]{width:100%;margin:3px 0 5px;accent-color:var(--acc)}
 .tg{display:flex;align-items:center;gap:6px;font-size:12px;cursor:pointer;padding:2px 0}
@@ -91,7 +95,9 @@ html[data-theme=dark] .warn{color:#ff8a80}
 
 <div id="panel">
 <div id="bar">
-  <div class="top"><span>阈值</span><span class="val" id="thv">25 分</span></div>
+  <div class="top"><span>阈值</span>
+    <span><span class="val" id="thv">25 分</span>
+      <button id="fold" title="收起/展开控制项">▾</button></span></div>
   <input type="range" id="th" min="15" max="40" step="1" value="25">
   <div id="minhub" title="只显示阈值内可达 ≥N 个枢纽的车站">
     <button data-n="1" class="on">≥1</button><button data-n="2">≥2</button>
@@ -807,9 +813,16 @@ const pinIcon = L.divIcon({className:'', iconSize:[26,34], iconAnchor:[13,32],
       +'<path d="M13 1C6.4 1 1 6.4 1 13c0 8.5 12 20 12 20s12-11.5 12-20C25 6.4 19.6 1 13 1z"'
       +' fill="#e5484d" stroke="#00000066" stroke-width="1.5"/>'
       +'<circle cx="13" cy="13" r="4.5" fill="#fff"/></svg>'});
-let pin = null, pinPopup = null;
+let pin = null, pinPopup = null, lastLongPress = 0;
+// 空白タップで popup を閉じる（一般の地図の作法）。ただし長押し直後の
+// 合成 click は無視する —— これを区別しないと「長押し→popup が一瞬で消える」
+// 重大バグが再発する。closePopupOnClick を切って自前で判定する理由がこれ。
+map.on('click', ()=>{
+  if(Date.now() - lastLongPress > 700) map.closePopup();
+});
 map.on('contextmenu', e=>{
   if(!DATA) return;
+  lastLongPress = Date.now();
   if(pin){ map.removeLayer(pin); pin = null; }
   pin = L.marker(e.latlng, {icon: pinIcon, interactive:false}).addTo(map);
   // 先に pinPopup を差し替えてから開く。openOn は旧popupを閉じて
@@ -822,6 +835,19 @@ map.on('contextmenu', e=>{
 map.on('popupclose', e=>{
   if(pin && e.popup === pinPopup){ map.removeLayer(pin); pin = null; pinPopup = null; }
 });
+
+// パネル折りたたみ: 狭い画面では既定で畳む。明示操作は記憶する
+const bar = document.getElementById('bar'), fold = document.getElementById('fold');
+function setFold(mini){
+  bar.classList.toggle('mini', mini);
+  fold.textContent = mini ? '▸' : '▾';
+  localStorage.setItem('barMini', mini ? '1' : '0');
+}
+fold.addEventListener('click', ()=> setFold(!bar.classList.contains('mini')));
+{
+  const saved = localStorage.getItem('barMini');
+  setFold(saved === null ? window.innerWidth < 620 : saved === '1');
+}
 
 const info=document.getElementById('info'), more=document.getElementById('more');
 function setInfo(open){
