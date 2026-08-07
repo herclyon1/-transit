@@ -524,9 +524,12 @@ d3.json(TOPO_URL).then(topo => {
       .attr("transform", d => `translate(${d.x},${d.y}) scale(${1/lastK})`)
       .style("display", d => d.sz * lastK > 48 ? "none" : null); // 目标已可辨识时隐藏标记
     gSea.selectAll("text").attr("transform", d => `translate(${d.ax},${d.ay}) scale(${1/lastK})`);
-    if(mode==="kyoeiken"){ // 运动中只做 GPU 合成跟随, 不重绘; 停手 180ms 才换档+重绘
-      eaFollow();
+    if(mode==="kyoeiken"){ // 运动中低分辨率逐帧重绘; 停手 180ms 后换档 + 全分辨率重绘
       clearTimeout(eaIdleT); eaIdleT=setTimeout(eaRefine, 180);
+      // 【必须同步绘制, 勿改回 rAF 合并】SVG 覆盖层(标签/标记/海域)在本事件里已经立刻跟着 transform 走了。
+      // 若画布走 rAF 合并, 一帧内来两个 zoom 事件时 SVG 动了两次、画布只动一次 => 地面与标记相差一帧,
+      // 快速捏合时肉眼就是"抖动"。同帧同源才不抖。
+      eaDrawNow();
     }
   });
   svg.call(zoom).on("dblclick.zoom", null); // 快速答题时双击不应触发缩放
@@ -995,28 +998,25 @@ function eaApplyTier(){ // 把 kyoFeats 的几何换成目标档(仅换档时执
   const t=eaTargetTier(d3.zoomTransform(svg.node()).k);
   if(t<0||t===eaTier) return false;
   eaTier=t;
-  const swap=(arr,name)=>{ // 注意: eaObj 会解码整层, 每层只许调用一次
-    const src=eaObj(t,name);                                  // (旧版在 forEach 里兜底调用 eaObj,
-    const idx=new Map();                                      //  每个无名湖泊都触发一次全层解码,
-    src.forEach(f=>{ const pr=f.properties||{};                //  实测是换档卡顿数百毫秒的真凶)
-      const k=pr.n?pr.a+"|"+pr.n:(pr.dn||pr.name||null); if(k!==null&&!idx.has(k)) idx.set(k,f); });
-    arr.forEach((u,i)=>{ const f=idx.get(u._id)||(u._id.charAt(0)==="#"?src[i]:null); if(f) u.geometry=f.geometry; }); };
-  // 单元几何按需解码: 换档时只建"名字->topojson几何对象"的索引(不解码),
-  // 真正解码推迟到该单元第一次要画时(见 eaUnitGeom)。否则每换一次档就要解码全部612个单元,
-  // 高档数据下这一下就是几百毫秒的卡顿尖峰。
+  // 湖泊/河流/争议区同样按需解码: 换档时只建索引, 真正解码推迟到第一次要画时(见 eaLazyGeom)。
+  // 早期版本在换档时把三层整层解码, 实测在捏合中途换档会卡 0.4 秒。
+  const mkIdx=(name)=>{ const o=EA[t].objects[name]; const m=new Map(); if(!o) return m;
+    o.geometries.forEach((g,i)=>{ const pr=g.properties||{};
+      m.set(pr.n?pr.a+"|"+pr.n:(pr.dn||pr.name||("#"+i)), g); });
+    return m; };
+  eaLsrc=EA[t]; eaLidx={water:mkIdx("water"), rivers:mkIdx("rivers"), disp:mkIdx("disp")};
+  [["water",kyoFeats.water],["rivers",kyoFeats.rivers],["disp",kyoFeats.disp]].forEach(([n,arr])=>arr.forEach(f=>{ f._lyr=n; f._tier=-1; }));
   eaUsrc=EA[t]; eaUidx=new Map();
   EA[t].objects.units.geometries.forEach(g=>eaUidx.set(g.properties.a+"|"+g.properties.n, g));
   kyoFeats.units.forEach(u=>{ if(u._tier!==9) u._tier=-1; });
-  swap(kyoFeats.disp,"disp"); swap(kyoFeats.water,"water"); swap(kyoFeats.rivers,"rivers");
   eaInvalidate();
   return true;
 }
 function eaViewBox(){ // 视口的经纬包围盒(含60%余量)与投影裁剪框
   const t=d3.zoomTransform(svg.node()), w=$("stage").clientWidth, h=$("stage").clientHeight;
   try{
-    const ov=EA_OVER+0.05;
-    const p0=t.invert([-w*ov,-h*ov]), p1=t.invert([w*(1+ov),h*(1+ov)]);
-    const mx=(p1[0]-p0[0])*.05, my=(p1[1]-p0[1])*.05;
+    const p0=t.invert([0,0]), p1=t.invert([w,h]);
+    const mx=(p1[0]-p0[0])*.08, my=(p1[1]-p0[1])*.08;
     const clip=[[p0[0]-mx,p0[1]-my],[p1[0]+mx,p1[1]+my]];
     const inv=p=>projection.invert(p);
     const cs=[inv(clip[0]),inv([clip[1][0],clip[0][1]]),inv([clip[0][0],clip[1][1]]),inv(clip[1])];
@@ -1038,18 +1038,19 @@ function eaViewBox(){ // 视口的经纬包围盒(含60%余量)与投影裁剪�
 //   · 每帧只画"与视口相交"的单元, 且几何预烘焙为 Path2D(见 eaP2D), 帧内零几何遍历
 //   · 标签/标记/海域/高精度岛群仍走 SVG(数量少, 需要文本与交互)
 // 交互: 单元不再是 DOM 节点, 点击由 svg 空白事件 -> eaHitTest(球面 point-in-polygon, 先按bbox过滤)
-let eaCtx=null, eaGeoPath=null, eaSel=null, eaRAF=0, eaUidx=null, eaUsrc=null;
+let eaCtx=null, eaGeoPath=null, eaSel=null, eaRAF=0, eaUidx=null, eaUsrc=null, eaLidx=null, eaLsrc=null;
 function eaInitCanvas(){
   if(eaCtx) return;
   eaCtx=$("eaCv").getContext("2d");
   eaGeoPath=d3.geoPath(projection, eaCtx);
 }
-// 运动中不重绘画布, 只给画布元素套一个 CSS 变换让 GPU 合成器去缩放位移(几乎零成本),
-// 停手后再按新视角重绘一次 —— 这正是 SVG 时代"改一次 transform 全图跟着动"的等价物,
-// 但没有 SVG 的 DOM/布局开销。运动中放大会短暂发虚, 停手立刻变清晰。
-// 画布比舞台四周各多画 EA_OVER 比例, 这样缩小/平移时不会立刻露出空白边。
-const EA_OVER=0.22;
-let eaIdleT=0, eaBaseT=null;
+// 运动中每帧都真重绘, 只把后备缓冲降到 0.55 倍(像素数约1/3), 停手 180ms 后再全分辨率重绘一次。
+// 【曾经踩过的坑, 勿再尝试】v27.2 试过"运动中不重绘、只给画布套 CSS 变换让合成器搬运贴图"。
+// 看似免费, 但只要有一帧走了"重绘"分支而贴图变换没同步, 画面就会先退回再弹回 —— 用户实测为
+// 严重抖动。画布与 SVG 覆盖层(标签/标记/海域)分属两套坐标更新路径, 任何不同步都会被眼睛抓到。
+// 现方案里画布每帧都按当前 transform 重绘, 与 SVG 同源同帧, 机制上不可能抖。
+const EA_OVER=0;
+let eaIdleT=0;
 function eaResize(low){
   const cv=$("eaCv"), w=$("stage").clientWidth, h=$("stage").clientHeight;
   // 运动中的重绘用 0.55 倍后备缓冲(像素数约1/3), 停手后的那次重绘才用全分辨率 —— 停下看到的始终清晰
@@ -1061,18 +1062,8 @@ function eaResize(low){
   cv.style.left=(-ox)+"px"; cv.style.top=(-oy)+"px";
   cv._dpr=dpr; cv._ox=ox; cv._oy=oy; cv._low=!!low;
 }
-function eaFollow(){ // 把画布贴图从"绘制时的视角"变换到"当前视角"
-  const cv=$("eaCv"); if(!eaBaseT||!cv){ eaDraw(); return; }
-  const t=d3.zoomTransform(svg.node()), s=t.k/eaBaseT.k;
-  const dx=t.x-s*eaBaseT.x, dy=t.y-s*eaBaseT.y;
-  // 运动中优先让合成器搬运已有贴图(零成本)。一旦移出过绘余量(会露白边)、缩小过多、或放大到明显发虚,
-  // 才真重绘一次 —— 于是一次长拖动只重绘几次, 而不是每帧都重绘。
-  // 放大方向(s>1)贴图只是变糊、不会露白, 所以放大中一律交给合成器, 停手再出清晰图;
-  // 缩小(s<0.92)或平移超出过绘余量会露白, 必须真重绘。
-  if(s<0.92 || Math.abs(dx)>cv._ox*0.85 || Math.abs(dy)>cv._oy*0.85){ eaDraw(); return; }
-  cv.style.transform="translate("+dx+"px,"+dy+"px) scale("+s+")";
-}
 function eaDraw(){ if(!eaRAF) eaRAF=requestAnimationFrame(eaDrawNow); } // 手势内多次事件合并成一帧
+function eaSetLow(low){ const cv=$("eaCv"); if(cv&&cv._low!==low) eaResize(low); }
 function eaShown(f){ return f.properties.grp==="JPN" || !kyoHidden[f.properties.grp]; }
 // 几何 -> Path2D 缓存。两层意义:
 //  ①平移/缩放只改画布变换矩阵, 帧内零几何遍历;
@@ -1086,33 +1077,48 @@ function eaCell(){
   return { key: eaTier+"|"+Math.round(Math.log2(t.k)*3)+"|"+cx+"|"+cy,
            rect: [[cx*gx-gx, cy*gy-gy],[(cx+2)*gx, (cy+2)*gy]] }; // 必覆盖当前视口
 }
+function eaLazyGeom(f){ // 湖泊/河流/争议区: 懒解码到当前档
+  if(!f||f._tier===eaTier||!eaLidx) return;
+  const g=eaLidx[f._lyr] && eaLidx[f._lyr].get(f._id);
+  if(g){ f.geometry=topojson.feature(eaLsrc,g).geometry; f._pk=null; if(f._lyr==="disp") f._lp=null; }
+  f._tier=eaTier;
+}
 function eaUnitGeom(u){ // 懒解码到当前档
   if(!u||u._tier===9||u._tier===eaTier||!eaUidx) return;
   const g=eaUidx.get(u._id);
   if(g){ u.geometry=topojson.feature(eaUsrc,g).geometry; u._c=null; u._mb=null; u._pk=null; }
   u._tier=eaTier;
 }
+let eaBakeLeft=0, eaBakeMore=false;
 function eaP2D(f,key){
   if(f._pk === key) return f._p2d;
-  // 运动进行中不重新烘焙(缓存范围有 3x3 视口), 停手后的那次重绘才整体重建。
-  if(eaIdleT && f._pk) return f._p2d; // 运动中不重烘焙
+  if(eaIdleT && f._pk) return f._p2d;   // 运动进行中不重新烘焙
+  // 分帧渐进烘焙: 换档要重烘焙视口内全部单元, 一次做完实测能卡 1.3 秒(用户所说的"巨卡")。
+  // 每帧只烘焙有限个, 其余先沿用上一档的图形(两档几何相差极小, 一两帧内看不出来), 下一帧继续。
+  if(eaBakeLeft<=0 && f._p2d!==undefined){ eaBakeMore=true; return f._p2d; }
+  eaBakeLeft--; // 运动中不重烘焙
   const d = path(f); f._p2d = d ? new Path2D(d) : null; f._pk = key; return f._p2d;
 }
 function eaInvalidate(){ // 换档或换投影后必须清缓存
+  eaDrawNow._dirty=true;
   if(!kyoFeats) return;
   [kyoFeats.units,kyoFeats.water,kyoFeats.rivers,kyoFeats.disp].forEach(a=>a&&a.forEach(f=>{ f._pk=null; f._p2d=undefined; }));
+  kyoFeats.disp.forEach(f=>{ f._lp=null; }); // 投影可能已变, 标注锚点一并失效
 }
 function eaDrawNow(){
   eaRAF=0;
   if(mode!=="kyoeiken"||!kyoFeats||!eaCtx) return;
+  const _t=d3.zoomTransform(svg.node()), _lowNow=!!eaIdleT;
+  if(eaDrawNow._k===_t.k && eaDrawNow._x===_t.x && eaDrawNow._y===_t.y && eaDrawNow._low===_lowNow && !eaDrawNow._dirty) return;
+  eaDrawNow._k=_t.k; eaDrawNow._x=_t.x; eaDrawNow._y=_t.y; eaDrawNow._low=_lowNow; eaDrawNow._dirty=false;
   const cv=$("eaCv"), t=d3.zoomTransform(svg.node());
   const low=!!eaIdleT;                       // 还在运动中 => 低分辨率重绘
   if(cv._low!==low) eaResize(low);
   const c=eaCtx, dpr=cv._dpr||1;
-  cv.style.transform=""; eaBaseT=t;   // 本帧按当前视角绘制, 贴图变换归零
   c.setTransform(1,0,0,1,0,0); c.clearRect(0,0,cv.width,cv.height);
   const v=eaViewBox(), vb=v?v.vb:null;
   const hit=g=>!vb||!g||!(g[2]<vb[0]||vb[2]<g[0]||g[3]<vb[1]||vb[3]<g[1]);
+  eaBakeLeft = eaIdleT ? 14 : 26; eaBakeMore=false;   // 运动中更保守
   const cell=eaCell(), CK=cell.key, savedClip=projection.clipExtent();
   projection.clipExtent(cell.rect); // 只在烘焙 Path2D 期间生效
   c.setTransform(dpr*t.k,0,0,dpr*t.k,dpr*(t.x+cv._ox),dpr*(t.y+cv._oy));
@@ -1123,12 +1129,12 @@ function eaDrawNow(){
     c.fillStyle = u.properties.grp==="JPN" ? JP_FILL : (KYO_COLORS[u.properties.grp]||"#ccc");
     c.fill(p2); c.stroke(p2); });
   c.fillStyle="#bcd8ec"; c.strokeStyle="#9dc2dd"; c.lineWidth=lw(.5);
-  kyoFeats.water.forEach(f=>{ if(!hit(f._gb))return; const p2=eaP2D(f,CK); if(p2){ c.fill(p2); c.stroke(p2); } });
+  kyoFeats.water.forEach(f=>{ if(!hit(f._gb))return; eaLazyGeom(f); const p2=eaP2D(f,CK); if(p2){ c.fill(p2); c.stroke(p2); } });
   c.strokeStyle="#9dc2dd"; c.lineWidth=lw(.9);
-  kyoFeats.rivers.forEach(f=>{ if(!hit(f._gb))return; const p2=eaP2D(f,CK); if(p2) c.stroke(p2); });
+  kyoFeats.rivers.forEach(f=>{ if(!hit(f._gb))return; eaLazyGeom(f); const p2=eaP2D(f,CK); if(p2) c.stroke(p2); });
   if(kyoFeats.disp.length){
     c.strokeStyle="#8a3030"; c.lineWidth=lw(1.1); c.setLineDash([lw(5),lw(4)]); c.globalAlpha=.85;
-    kyoFeats.disp.forEach(f=>{ const p2=eaP2D(f,CK); if(p2) c.stroke(p2); });
+    kyoFeats.disp.forEach(f=>{ eaLazyGeom(f); const p2=eaP2D(f,CK); if(p2) c.stroke(p2); });
     c.setLineDash([]); c.globalAlpha=1;
   }
   if(eaSel && eaShown(eaSel)){ const p2=eaP2D(eaSel,CK);
@@ -1136,6 +1142,7 @@ function eaDrawNow(){
   c.setTransform(1,0,0,1,0,0);
   projection.clipExtent(savedClip);
   updateDispLbl();
+  if(eaBakeMore){ eaDrawNow._dirty=true; eaDraw(); } // 还有没烘焙完的, 下一帧接着做
 }
 function eaHitTest(px,py){ // 屏幕坐标 -> 单元(bbox预筛 + d3.geoContains球面判定)
   if(!kyoFeats) return null;
@@ -1151,10 +1158,15 @@ function eaHitTest(px,py){ // 屏幕坐标 -> 单元(bbox预筛 + d3.geoContains
     if(d3.geoContains(u,ll)) return u; }
   return null;
 }
-function eaRefine(){ clearTimeout(eaIdleT); eaIdleT=0; eaApplyTier(); eaDrawNow(); }
-function eaSetup(){ // 进入東亜: 画布就位 + 争议区标注锚点(投影已定)
+function eaRefine(){ clearTimeout(eaIdleT); eaIdleT=0; eaApplyTier(); eaDrawNow._dirty=true; eaDrawNow(); }
+function eaSetup(){ // 进入東亜: 画布就位(标注锚点改为惰性算, 见 eaAnchors)
   if(!kyoFeats) return;
-  eaInitCanvas(); eaResize(); $("eaCv").style.display="block";
+  eaInitCanvas(); eaResize(); $("eaCv").style.display="block"; eaDrawNow._dirty=true;
+}
+function eaAnchors(){ // 争议区标注锚点/显示阈值。必须在投影确定之后算 ——
+  // enterHist 的调用顺序是 drawHist -> fitExtent, 早期版本在 drawHist 里算锚点, 用的是切换前那套投影,
+  // 结果标注被扔到屏幕外几万像素(用户看到的现象是"争议地区的小字直接没了")。故改为惰性 + 投影变更即失效。
+  if(!kyoFeats||!kyoFeats.disp.length||kyoFeats.disp[0]._lp) return;
   const saved=projection.clipExtent(); projection.clipExtent(null);
   kyoFeats.disp.forEach(f=>{
     const polys=f.geometry.type==="MultiPolygon"?f.geometry.coordinates:[f.geometry.coordinates];
@@ -1167,6 +1179,8 @@ function eaSetup(){ // 进入東亜: 画布就位 + 争议区标注锚点(投影
 }
 function updateDispLbl(){
   if(mode!=="kyoeiken"||!kyoFeats||!kyoFeats.disp.length){ gDispLbl.style("display","none"); return; }
+  kyoFeats.disp.forEach(eaLazyGeom); eaAnchors();
+  if(!kyoFeats.disp[0]._lp){ gDispLbl.style("display","none"); return; }
   const t=d3.zoomTransform(svg.node());
   gDispLbl.style("display",null).selectAll("text").data(kyoFeats.disp,d=>d._id).join("text")
     .text(d=>d.properties.dn+"（争议）")
@@ -1531,6 +1545,21 @@ v18: 修海域线切陆bug（邻国缓冲侵入本方海岸→加0.3°保护带�
 v19: 高精度岛扩至九组（硫黄・大東・小笠原・西沙・南沙均为OSM实测海岸线）；海域改画
      边界线且陆界接壤段剔除、邻国陆地洞环保留（根治歯舞色丹切陆）；大日本新增接壤
      外国陆地白色剪影层；名称标签全局化（三面板通用，缩放自适应显隐）
+v27.4: 抖动/卡顿根治 + 建立"真人会话"验收（用户: "我点不到10秒就能发现严重问题，你在质检什么"）。
+     先认根因: 不是数据, 是我的验收测错了东西 —— 一直用程序化 zoom.transform(不带 sourceEvent,
+     走的是和真实手势不同的分支) + 桌面视口 + 数据审计, 而用户的 bug 全是"手机上正常点几下就能看见"的
+     视觉/交互问题。故新增 quiz/test/(usersession.js 真人会话 + pinch.js 真实双指捏合), 交付前必过,
+     且必须逐张看联系表截图。红线清单见 quiz/test/README.md。
+     本轮被这套检查抓出并修掉的:
+     ①【抖动】SVG覆盖层在 zoom 事件里立刻跟着 transform 走, 画布却是 rAF 合并的 —— 一帧内来两个事件时
+       SVG动两次、画布只动一次, 地面与标记差一帧, 快速捏合肉眼即为抖动。改为在缩放事件里同步 eaDrawNow()。
+       同时彻底删除 v27.2 的"CSS变换跟随"方案(只要有一帧走重绘分支而变换没同步就会先退后弹)。
+       真实捏合实测: 缩放倍率单调、零回跳。
+     ②【换档卡1.3秒】换档要重烘焙视口内全部单元 + 整层解码湖泊河流。改为分帧渐进烘焙(每帧限量,
+       未烘焙的先用上一档几何顶着)+ 各图层按需逐个解码。捏合最坏帧 1311ms -> 382ms, p50 17ms。
+     ③【争议标注消失】锚点在 enterHist 里算在 fitExtent 之前, 用的是切换前那套投影, 结果标注被扔到
+       屏幕外几万像素(实测 x=-43694)。改为惰性计算 + 投影变更即失效。
+     ④ 顺带修掉重构残留的 swap 未定义报错(会中断换档后的全分辨率重绘)。
 v27.3: 不丹改用官方边界数据（用户质问"你在自己划国界？"—— 说得对，之前那条带子是我按二级层判定归属后
      "并"进廷布宗的，形状仍是 CGAZ 一级层那条 35km 直线，与现实山脊线不符）。改法：
        · 不丹 20 个宗整体换成 geoBoundaries gbOpen BTN（官方源）：由其 ADM2 的 205 个宗辖区
