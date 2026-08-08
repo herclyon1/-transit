@@ -1,0 +1,519 @@
+<!doctype html><meta charset="utf-8"><title>Claw'd 候选对比</title>
+<style>body{margin:0;background:#FBFAF7;font-family:system-ui,sans-serif;padding:16px}
+.g{display:flex;flex-wrap:wrap;gap:14px}
+.c{background:#fff;border:1px solid #ddd;border-radius:10px;padding:8px;width:172px;text-align:center}
+.t{font-size:11px;color:#666;margin-bottom:4px;min-height:28px}
+svg{width:150px;height:150px}</style>
+<div class="g"><div class="c"><div class="t">A  clawd-tank / static-base</div><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 15 16" width="150" height="150">
+  <rect id="A_ground-shadow" x="3" y="15" width="9" height="1" fill="#000000" opacity="0.5"/>
+  
+  <g id="A_master-group">
+    <g id="A_body-color-group" fill="#DE886D">
+      <rect id="A_torso" x="2" y="6" width="11" height="7"/>
+      <rect id="A_left-arm" x="0" y="9" width="2" height="2"/>
+      <rect id="A_right-arm" x="13" y="9" width="2" height="2"/>
+      
+      <rect id="A_outer-left-leg" x="3" y="13" width="1" height="2"/>
+      <rect id="A_inner-left-leg" x="5" y="13" width="1" height="2"/>
+      <rect id="A_inner-right-leg" x="9" y="13" width="1" height="2"/>
+      <rect id="A_outer-right-leg" x="11" y="13" width="1" height="2"/>
+    </g>
+    
+    <g id="A_eyes-color-group" fill="#000000">
+      <rect id="A_left-eye" x="4" y="8" width="1" height="2"/>
+      <rect id="A_right-eye" x="10" y="8" width="1" height="2"/>
+    </g>
+  </g>
+</svg></div><div class="c"><div class="t">B  clawd-tank / working-typing  ← 带笔电</div><svg xmlns="http://www.w3.org/2000/svg" viewBox="-15 -25 45 45" width="150" height="150">
+  <defs>
+    <style>
+      /* High-speed body jitter */
+      .body-jitter {
+        transform-origin: 7.5px 15px;
+        animation: jitter 0.08s infinite alternate ease-in-out;
+      }
+
+      /* Furious typing arms (rotating out and tapping) */
+      .arm-l-type {
+        transform-origin: 2px 10px; /* Shoulder joint */
+        animation: type-l 0.15s infinite ease-in-out;
+      }
+      .arm-r-type {
+        transform-origin: 13px 10px; /* Shoulder joint */
+        animation: type-r 0.12s infinite ease-in-out;
+      }
+
+      /* Eye tracking (reading lines of code quickly) */
+      .eyes-read {
+        animation: read-code 1.2s infinite;
+      }
+
+      /* Floating data packets */
+      .data-bit {
+        opacity: 0;
+        animation: float-data 1s infinite linear;
+      }
+      .d1 { animation-delay: 0.0s; transform-origin: -2px 10px; }
+      .d2 { animation-delay: 0.3s; transform-origin: 5px 12px; }
+      .d3 { animation-delay: 0.6s; transform-origin: 12px 11px; }
+      .d4 { animation-delay: 0.8s; transform-origin: 17px 9px; }
+      .d5 { animation-delay: 0.1s; transform-origin: 8px 10px; }
+      .d6 { animation-delay: 0.4s; transform-origin: 0px 11px; }
+      .d7 { animation-delay: 0.7s; transform-origin: 15px 12px; }
+
+      /* Laptop Logo Glow */
+      .logo-glow {
+        animation: logo-pulse 1.5s infinite alternate ease-in-out;
+      }
+
+      /* Keyframes */
+      @keyframes jitter {
+        0% { transform: translateY(0); }
+        100% { transform: translateY(0.5px); }
+      }
+
+      /* Arms point forward and tap rapidly */
+      @keyframes type-l {
+        0% { transform: rotate(70deg); }
+        25% { transform: rotate(110deg); }
+        50% { transform: rotate(80deg); }
+        75% { transform: rotate(100deg); }
+        100% { transform: rotate(70deg); }
+      }
+
+      @keyframes type-r {
+        0% { transform: rotate(-80deg); }
+        25% { transform: rotate(-100deg); }
+        50% { transform: rotate(-70deg); }
+        75% { transform: rotate(-110deg); }
+        100% { transform: rotate(-80deg); }
+      }
+
+      /* Discrete steps to look like reading text */
+      @keyframes read-code {
+        0%, 14% { transform: translate(-2px, 0); }
+        15%, 29% { transform: translate(-1px, 0); }
+        30%, 44% { transform: translate(0px, 0); }
+        45%, 59% { transform: translate(1px, 0); }
+        60%, 84% { transform: translate(2px, 0); }
+        85%, 100% { transform: translate(-2px, 0); } /* Carriage return snap back */
+      }
+
+      /* Packets float up and fade */
+      @keyframes float-data {
+        0% { transform: translateY(0) scale(0.5); opacity: 0; }
+        20% { opacity: 0.8; }
+        100% { transform: translateY(-15px) scale(1.2); opacity: 0; }
+      }
+
+      @keyframes logo-pulse {
+        0% { opacity: 0.4; }
+        100% { opacity: 1; }
+      }
+    </style>
+    
+    <!-- A small square to represent data/code -->
+    <g id="B_pixel-packet">
+      <rect x="0" y="0" width="1.5" height="1.5" />
+    </g>
+  </defs>
+
+  <!-- Ground Shadow -->
+  <rect id="B_ground-shadow" x="3" y="15" width="9" height="1" fill="#000000" opacity="0.5"/>
+
+  <!-- Data Particles floating up from behind the laptop -->
+  <g class="data-particles" fill="#40C4FF">
+    <use href="#pixel-packet" class="data-bit d1" x="-2" y="12" />
+    <use href="#pixel-packet" class="data-bit d2" x="5" y="11" />
+    <use href="#pixel-packet" class="data-bit d3" x="12" y="13" />
+    <use href="#pixel-packet" class="data-bit d4" x="17" y="11" />
+    <use href="#pixel-packet" class="data-bit d5" x="8" y="10" />
+    <use href="#pixel-packet" class="data-bit d6" x="1" y="11" />
+    <use href="#pixel-packet" class="data-bit d7" x="15" y="12" />
+  </g>
+
+  <!-- Animated Character Body -->
+  <g class="body-jitter">
+    
+    <!-- Body Base Color Group -->
+    <g id="B_body-color-group" fill="#DE886D">
+      <!-- Static Legs -->
+      <rect id="B_outer-left-leg" x="3" y="13" width="1" height="2"/>
+      <rect id="B_inner-left-leg" x="5" y="13" width="1" height="2"/>
+      <rect id="B_inner-right-leg" x="9" y="13" width="1" height="2"/>
+      <rect id="B_outer-right-leg" x="11" y="13" width="1" height="2"/>
+
+      <!-- Main Torso -->
+      <rect id="B_torso" x="2" y="6" width="11" height="7"/>
+      
+      <!-- Typing Arms -->
+      <g class="arm-l-type">
+        <rect id="B_left-arm" x="0" y="9" width="2" height="2"/>
+      </g>
+      <g class="arm-r-type">
+        <rect id="B_right-arm" x="13" y="9" width="2" height="2"/>
+      </g>
+    </g>
+    
+    <!-- Eyes Color Group (Squinting) -->
+    <g fill="#000000">
+      <g class="eyes-read">
+        <rect id="B_left-eye-squint" x="4" y="8.5" width="1" height="1"/>
+        <rect id="B_right-eye-squint" x="10" y="8.5" width="1" height="1"/>
+      </g>
+    </g>
+    
+  </g>
+
+  <!-- Pixel Laptop (facing Clawd, so we see the back of the screen) -->
+  <g id="B_laptop" transform="translate(3, 9.5)">
+    <!-- Laptop Base -->
+    <rect x="-0.5" y="5" width="10" height="1" fill="#546E7A" rx="0.5"/>
+    <!-- Screen Back -->
+    <rect x="0" y="0" width="9" height="5.5" fill="#78909C" rx="0.5"/>
+    <!-- Glowing Logo (Pixel) -->
+    <circle cx="4.5" cy="2.5" r="1.5" fill="#40C4FF" opacity="0.2" class="logo-glow"/>
+    <rect x="4" y="2" width="1" height="1" fill="#FFFFFF" class="logo-glow"/>
+  </g>
+
+</svg>
+</div><div class="c"><div class="t">C  clawd-tank / mini-crab-typing</div><svg xmlns="http://www.w3.org/2000/svg" viewBox="-2 -2 12 12" width="150" height="150">
+  <defs>
+    <style>
+      .mcb { animation: mc-bounce .35s infinite alternate ease-in-out; }
+      .mc-al { transform-origin: .3px 4.5px; animation: mc-tl .2s infinite ease-in-out; }
+      .mc-ar { transform-origin: 6.2px 4.5px; animation: mc-tr .18s infinite ease-in-out; }
+      .mc-data { opacity: 0; animation: mc-float 1.2s infinite linear; }
+      @keyframes mc-bounce { 0% { transform: translateY(0); } 100% { transform: translateY(-.6px); } }
+      @keyframes mc-tl { 0%,100% { transform: rotate(0); } 50% { transform: rotate(35deg); } }
+      @keyframes mc-tr { 0%,100% { transform: rotate(0); } 50% { transform: rotate(-35deg); } }
+      @keyframes mc-float { 0% { transform: translateY(0) scale(.4); opacity: 0; } 20% { opacity: .7; } 100% { transform: translateY(-5px) scale(.7); opacity: 0; } }
+    </style>
+  </defs>
+
+  <!-- Shadow -->
+  <rect x="1.5" y="8.5" width="4" height=".5" fill="#000" opacity=".25"/>
+
+  <!-- Animated body -->
+  <g class="mcb">
+    <!-- Legs -->
+    <g fill="#DE886D">
+      <rect x="1.5" y="7" width=".8" height="1.5"/>
+      <rect x="2.7" y="7" width=".8" height="1.5"/>
+      <rect x="3.8" y="7" width=".8" height="1.5"/>
+      <rect x="5.0" y="7" width=".8" height="1.5"/>
+    </g>
+
+    <!-- Body -->
+    <rect x="1" y="3.5" width="5.3" height="3.5" fill="#DE886D"/>
+
+    <!-- Arms (typing) -->
+    <g class="mc-al"><rect x="-.5" y="4" width="1.3" height="1.2" fill="#DE886D"/></g>
+    <g class="mc-ar"><rect x="6.5" y="4" width="1.3" height="1.2" fill="#DE886D"/></g>
+
+    <!-- Eyes -->
+    <rect x="2.2" y="4.2" width=".8" height="1" fill="#000"/>
+    <rect x="4.3" y="4.2" width=".8" height="1" fill="#000"/>
+  </g>
+
+  <!-- Floating data particle -->
+  <rect class="mc-data" x="3" y="1.5" width="1.2" height="1.2" fill="#0082FC"/>
+</svg>
+</div><div class="c"><div class="t">D  clawd-tank / idle-living</div><svg xmlns="http://www.w3.org/2000/svg" viewBox="-15 -25 45 45" width="150" height="150">
+  <defs>
+    <style>
+      /* 16-Second Master Sequence for Idle Actions */
+      .action-body {
+        transform-origin: 7.5px 13px; /* Pivot at the base of the torso */
+        animation: action-body 16s infinite ease-in-out;
+      }
+      
+      /* Continuous Subtle Breathing (Syncs exactly 5 times per 16s loop) */
+      .breathe-anim {
+        transform-origin: 7.5px 13px;
+        animation: breathe 3.2s infinite ease-in-out;
+      }
+
+      /* Shadow shrinking and shifting matching actions */
+      .shadow-anim {
+        transform-origin: 7.5px 15.5px;
+        animation: shadow-action 16s infinite ease-in-out;
+      }
+
+      /* Left Arm (Scratching and Yawn Stretching) */
+      .arm-l {
+        transform-origin: 1px 10px;
+        animation: arm-l-idle 16s infinite ease-in-out;
+      }
+
+      /* Right Arm (Yawn Stretching) */
+      .arm-r {
+        transform-origin: 14px 10px;
+        animation: arm-r-idle 16s infinite ease-in-out;
+      }
+
+      /* Eye Tracking (Looking around) */
+      .eyes-look {
+        animation: eye-track 16s infinite ease-in-out;
+      }
+
+      /* Occasional Blinks and shutting during Yawn */
+      .eyes-blink {
+        transform-origin: 7.5px 9px;
+        animation: eye-blink 16s infinite linear;
+      }
+
+      /* Yawn Mouth Appearance */
+      .yawn-mouth {
+        transform-origin: 7.5px 11px;
+        animation: yawn-mouth-anim 16s infinite ease-in-out;
+        opacity: 0;
+      }
+
+      /* Tiny tear that appears during the big yawn */
+      .yawn-tear {
+        animation: tear-fall 16s infinite ease-in-out;
+        opacity: 0;
+      }
+
+      /* --- Keyframes --- */
+
+      @keyframes breathe {
+        0%, 100% { transform: scale(1, 1) translate(0, 0); }
+        50% { transform: scale(1.02, 0.98) translate(0, 0.5px); }
+      }
+
+      @keyframes action-body {
+        0%, 8%, 26%, 38%, 55%, 80%, 100% { transform: scale(1, 1) translate(0, 0); }
+        /* Look Right Tilt */
+        12%, 22% { transform: scale(1, 1) translate(1px, 0); }
+        /* Look Left Tilt */
+        42%, 50% { transform: scale(1, 1) translate(-1px, 0); }
+        /* Scratching Lean */
+        30%, 36% { transform: scale(1, 1) translate(0.5px, 0); } 
+        /* Deep Yawn Stretch */
+        60% { transform: scale(0.95, 1.05) translate(0px, -1px); } /* Stretch up */
+        65% { transform: scale(0.9, 1.1) translate(0px, -2px); }   /* Peak stretch */
+        72% { transform: scale(1.05, 0.95) translate(0px, 1px); }  /* Heavy sigh / squash down */
+        76% { transform: scale(1, 1) translate(0px, 0px); }        /* Recover */
+      }
+
+      @keyframes shadow-action {
+        0%, 8%, 26%, 38%, 55%, 80%, 100% { transform: scaleX(1) translate(0, 0); opacity: 0.5; }
+        12%, 22% { transform: scaleX(1) translate(1px, 0); opacity: 0.5; }
+        42%, 50% { transform: scaleX(1) translate(-1px, 0); opacity: 0.5; }
+        30%, 36% { transform: scaleX(1) translate(0.5px, 0); opacity: 0.5; }
+        60% { transform: scaleX(0.95) translate(0, 0); opacity: 0.45; }
+        65% { transform: scaleX(0.9) translate(0, 0); opacity: 0.4; }
+        72% { transform: scaleX(1.05) translate(0, 0); opacity: 0.55; }
+        76% { transform: scaleX(1) translate(0, 0); opacity: 0.5; }
+      }
+
+      @keyframes eye-track {
+        0%, 10%, 25%, 38%, 52%, 58%, 80%, 100% { transform: translate(0px, 0px); }
+        12%, 22% { transform: translate(3px, 0px); } /* Look Right */
+        42%, 50% { transform: translate(-3px, 0px); } /* Look Left */
+        60%, 75% { transform: translate(0px, -1px); } /* Look slightly up during yawn */
+      }
+
+      @keyframes eye-blink {
+        0%, 3%, 7%, 18%, 22%, 43%, 47%, 56%, 83%, 87%, 100% { transform: scaleY(1); }
+        5%, 20%, 45%, 85% { transform: scaleY(0.1); } /* Quick Blinks */
+        /* Yawn Closed Eyes */
+        60% { transform: scaleY(1); }
+        62%, 72% { transform: scaleY(0.1); } /* Eyes completely shut */
+        75% { transform: scaleY(1); }
+      }
+
+      @keyframes arm-l-idle {
+        0%, 28% { transform: translate(0, 0) rotate(0deg); }
+        
+        /* Occasional Scratching Sequence (Left Arm) */
+        30% { transform: translate(1px, -3px) rotate(15deg); }
+        31% { transform: translate(1.5px, -4px) rotate(35deg); } /* Up */
+        32% { transform: translate(0.5px, -2.5px) rotate(0deg); } /* Down */
+        33% { transform: translate(1.5px, -4px) rotate(35deg); }
+        34% { transform: translate(0.5px, -2.5px) rotate(0deg); }
+        35% { transform: translate(1.5px, -4px) rotate(35deg); }
+        36% { transform: translate(0.5px, -2.5px) rotate(0deg); }
+        
+        38%, 58% { transform: translate(0, 0) rotate(0deg); }
+        
+        /* Yawn Stretch */
+        62% { transform: translate(-1px, -2px) rotate(45deg); }
+        65% { transform: translate(-2px, -3px) rotate(80deg); } /* Full outward stretch */
+        72% { transform: translate(0px, 1px) rotate(-15deg); } /* Relax down */
+        76%, 100% { transform: translate(0, 0) rotate(0deg); }
+      }
+
+      @keyframes arm-r-idle {
+        0%, 58% { transform: translate(0, 0) rotate(0deg); }
+        /* Yawn Stretch */
+        62% { transform: translate(1px, -2px) rotate(-45deg); }
+        65% { transform: translate(2px, -3px) rotate(-80deg); } /* Full outward stretch */
+        72% { transform: translate(0px, 1px) rotate(15deg); } /* Relax down */
+        76%, 100% { transform: translate(0, 0) rotate(0deg); }
+      }
+
+      @keyframes yawn-mouth-anim {
+        0%, 58%, 76%, 100% { opacity: 0; transform: scale(0.1); }
+        60% { opacity: 1; transform: scale(0.5, 0.2); }
+        65% { opacity: 1; transform: scale(1.1, 1.4); } /* Wide Open */
+        72% { opacity: 1; transform: scale(0.6, 0.4); } /* Shrinking */
+        75% { opacity: 0; transform: scale(0.1); }
+      }
+
+      @keyframes tear-fall {
+        0%, 64%, 80%, 100% { opacity: 0; transform: translateY(0); }
+        66% { opacity: 1; transform: translateY(0); } /* Appears at corner of eye */
+        72% { opacity: 1; transform: translateY(2.5px); } /* Slides down cheek */
+        75% { opacity: 0; transform: translateY(3px); } /* Fades out */
+      }
+    </style>
+  </defs>
+
+  <!-- Ground Shadow -->
+  <rect id="D_ground-shadow" class="shadow-anim" x="3" y="15" width="9" height="1" fill="#000000" opacity="0.5"/>
+
+  <!-- Static Character Legs (Planted firmly while the body stretches above) -->
+  <g id="D_legs" fill="#DE886D">
+    <rect id="D_outer-left-leg" x="3" y="13" width="1" height="2"/>
+    <rect id="D_inner-left-leg" x="5" y="13" width="1" height="2"/>
+    <rect id="D_inner-right-leg" x="9" y="13" width="1" height="2"/>
+    <rect id="D_outer-right-leg" x="11" y="13" width="1" height="2"/>
+  </g>
+
+  <!-- Animated Upper Body (Combines occasional actions + continuous breathing) -->
+  <g class="action-body">
+    <g class="breathe-anim">
+      
+      <!-- Torso -->
+      <rect id="D_torso" x="2" y="6" width="11" height="7" fill="#DE886D"/>
+      
+      <!-- Arms -->
+      <g class="arm-l">
+        <rect id="D_left-arm" x="0" y="9" width="2" height="2" fill="#DE886D"/>
+      </g>
+      <g class="arm-r">
+        <rect id="D_right-arm" x="13" y="9" width="2" height="2" fill="#DE886D"/>
+      </g>
+
+      <!-- Yawning Mouth (Hidden usually) -->
+      <rect class="yawn-mouth" x="6" y="10" width="3" height="2" fill="#000000"/>
+
+      <!-- Eyes Group -->
+      <g class="eyes-look" fill="#000000">
+        <g class="eyes-blink">
+          <rect id="D_left-eye" x="4" y="8" width="1" height="2"/>
+          <rect id="D_right-eye" x="10" y="8" width="1" height="2"/>
+        </g>
+      </g>
+
+      <!-- Yawn Tear Drop (A tiny detail for the big stretch) -->
+      <rect class="yawn-tear" x="3.5" y="10" width="1" height="1" fill="#40C4FF"/>
+      
+    </g>
+  </g>
+</svg></div><div class="c"><div class="t">E  clawd-tank / crab-walking</div><svg xmlns="http://www.w3.org/2000/svg" viewBox="-15 -25 45 45" width="150" height="150">
+  <defs>
+    <style>
+      .body-anim {
+        animation: body-bob 1s infinite linear;
+      }
+      .leg-a {
+        animation: leg-a 1s infinite linear;
+      }
+      .leg-b {
+        animation: leg-b 1s infinite linear;
+      }
+      .arm-l {
+        animation: arm-l 1s infinite linear;
+      }
+      .arm-r {
+        animation: arm-r 1s infinite linear;
+      }
+      .eyes-anim {
+        transform-origin: 7.5px 9px;
+        animation: eyes-look-blink 4s infinite linear;
+      }
+
+      @keyframes body-bob {
+        0%, 100% { transform: translate(0px, 1px); }
+        25%      { transform: translate(0px, 0px); }
+        50%      { transform: translate(0px, 1px); }
+        75%      { transform: translate(0px, 0px); }
+      }
+
+      @keyframes leg-a {
+        0%, 100% { transform: translate(-2px, 0px); }
+        25%      { transform: translate(0px, 0px); }
+        50%      { transform: translate(2px, 0px); }
+        75%      { transform: translate(0px, -2px); }
+      }
+
+      @keyframes leg-b {
+        0%, 100% { transform: translate(2px, 0px); }
+        25%      { transform: translate(0px, -2px); }
+        50%      { transform: translate(-2px, 0px); }
+        75%      { transform: translate(0px, 0px); }
+      }
+
+      @keyframes arm-l {
+        0%, 50%, 100% { transform: translate(0px, 0px); }
+        25%           { transform: translate(0px, -1px); }
+        75%           { transform: translate(0px, 1px); }
+      }
+
+      @keyframes arm-r {
+        0%, 50%, 100% { transform: translate(0px, 0px); }
+        25%           { transform: translate(0px, 1px); }
+        75%           { transform: translate(0px, -1px); }
+      }
+
+      @keyframes eyes-look-blink {
+        0%, 48%, 52%, 100% { transform: translate(-2px, 0px) scaleY(1); }
+        50%                { transform: translate(-2px, 0px) scaleY(0.1); }
+      }
+    </style>
+  </defs>
+
+  <!-- Ground Shadow -->
+  <rect id="E_ground-shadow" x="3" y="15" width="9" height="1" fill="#000000" opacity="0.5"/>
+
+  <!-- Animated Legs -->
+  <g id="E_legs" fill="#DE886D">
+    <g class="leg-a">
+      <rect id="E_outer-left-leg" x="3" y="13" width="1" height="2"/>
+    </g>
+    <g class="leg-b">
+      <rect id="E_inner-left-leg" x="5" y="13" width="1" height="2"/>
+    </g>
+    <g class="leg-a">
+      <rect id="E_inner-right-leg" x="9" y="13" width="1" height="2"/>
+    </g>
+    <g class="leg-b">
+      <rect id="E_outer-right-leg" x="11" y="13" width="1" height="2"/>
+    </g>
+  </g>
+
+  <!-- Animated Upper Body -->
+  <g class="body-anim">
+    <!-- Body Color Group -->
+    <g fill="#DE886D">
+      <rect id="E_torso" x="2" y="6" width="11" height="7"/>
+      <g class="arm-l">
+        <rect id="E_left-arm" x="0" y="9" width="2" height="2"/>
+      </g>
+      <g class="arm-r">
+        <rect id="E_right-arm" x="13" y="9" width="2" height="2"/>
+      </g>
+    </g>
+    
+    <!-- Eyes Color Group -->
+    <g class="eyes-anim" fill="#000000">
+      <rect id="E_left-eye" x="4" y="8" width="1" height="2"/>
+      <rect id="E_right-eye" x="10" y="8" width="1" height="2"/>
+    </g>
+  </g>
+</svg>
+</div></div>
