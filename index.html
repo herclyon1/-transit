@@ -34,14 +34,15 @@ footer{margin-top:34px;font-size:11.5px;color:var(--muted);max-width:680px;line-
    动画内容只占画布的 x 733..2437 / y 700..1850（约 61.9% x 62.2%），
    其余是透明留白，所以这里用一个窗口把有内容的那块放大平移出来，
    JSON 本身一个字节都没动。lottie_light 是官方页面同款播放器（MIT）。*/
-.clawd{width:100%;max-width:680px;margin-top:30px;display:flex;align-items:flex-end;gap:16px}
-.clawd .stage{position:relative;width:178px;height:120px;overflow:hidden;flex:none}
+.clawd{width:100%;max-width:680px;margin:-2px 0 22px;display:flex;align-items:flex-end;gap:13px}
+.clawd .stage{position:relative;width:104px;height:70px;overflow:hidden;flex:none;cursor:pointer}
 .clawd .stage>div{position:absolute;width:161.44%;height:160.87%;left:-43.05%;top:-60.87%}
 .clawd .stage svg{display:block}
-.clawd .say{font-size:12px;color:var(--muted);line-height:1.7;padding-bottom:8px}
-.clawd .say b{color:var(--soft);font-weight:700}
+.clawd .say{font-size:12.5px;color:var(--soft);line-height:1.65;padding-bottom:6px}
+.clawd .say .who{font-weight:700;color:var(--ink)}
+.clawd .say .hint{color:var(--muted);font-size:11.5px}
 /* 播放器没加载出来时退回官方静图，不留空白 */
-.clawd .stage.fallback{background:url(clawd/clawd.svg) center/auto 62% no-repeat}
+.clawd .stage.fallback{background:url(clawd/clawd.svg) center/auto 58% no-repeat}
 
 </style>
 </head>
@@ -49,8 +50,13 @@ footer{margin-top:34px;font-size:11.5px;color:var(--muted);max-width:680px;line-
 <header>
   <div class="kicker">MAP TOOLS</div>
   <h1>地図ツール</h1>
-  <div class="note">按「打开它是为了做什么」分成两个入口，而不是按地图种类分。底层共用同一套渲染引擎与瓦片数据。</div>
 </header>
+
+<div class="clawd">
+  <div class="stage fallback" id="clawd" role="img" aria-label="Claw'd" title="点一下再放一次"><div></div></div>
+  <div class="say"><span class="who">Claw'd</span> —— 这只螃蟹就是我，Claude。<br>
+  这个站的地图数据、瓦片和页面都是我写的。<span class="hint">点一下我再演一遍</span></div>
+</div>
 
 <div class="cards">
   <a class="card quiz" href="quiz/map.html">
@@ -58,7 +64,7 @@ footer{margin-top:34px;font-size:11.5px;color:var(--muted);max-width:680px;line-
     <h2>地図 · 学習</h2>
     <p>了解日本与东亚的地理和行政结构。</p>
     <ul>
-      <li>現代日本：47 都道府県 · 1741 市町村 · 232,009 町丁字（三级下钻）</li>
+      <li>現代日本：47 都道府県 · 1741 市町村 · 171 行政区 · 232,009 町丁字（四级下钻）</li>
       <li>東亜：621 单元／27 国</li>
       <li class="wip">答题 · 闯关：地图验收通过后重做</li>
       <li class="wip">大日本（1942）：需历史 GIS 数据，暂缓</li>
@@ -76,19 +82,21 @@ footer{margin-top:34px;font-size:11.5px;color:var(--muted);max-width:680px;line-
   </a>
 </div>
 
-<div class="clawd">
-  <div class="stage fallback" id="clawd" role="img" aria-label="Claw'd"><div></div></div>
-  <div class="say"><b>Claw'd</b>　Anthropic 官方素材，原文件未改动。<br>
-  <code>Clawd-Laptop</code>　43 帧／12fps／Lottie 5.7.4。</div>
-</div>
 <script src="clawd/lottie_light.min.js"></script>
 <script>
 (function(){
   var box=document.getElementById("clawd");
   if(!window.lottie||!box) return;                 // 播放器没到就保持静图
-  lottie.loadAnimation({container:box.firstElementChild,renderer:"svg",
-    loop:true,autoplay:true,path:"clawd/clawd-laptop.json"})
-    .addEventListener("DOMLoaded",function(){box.classList.remove("fallback");});
+  // 进页面只演一次，演完停在最后一帧；点一下再演一次。不循环。
+  var a=lottie.loadAnimation({container:box.firstElementChild,renderer:"svg",
+    loop:false,autoplay:true,path:"clawd/clawd-laptop.json"});
+  a.addEventListener("DOMLoaded",function(){box.classList.remove("fallback");});
+  var busy=false;
+  a.addEventListener("complete",function(){busy=false;});
+  box.addEventListener("click",function(){
+    if(busy) return;                               // 连点不叠加
+    busy=true; a.goToAndPlay(0,true);
+  });
 })();
 </script>
 

@@ -72,6 +72,9 @@ const map=new maplibregl.Map({
       choB:{type:"vector",url:"pmtiles://ka_b.pmtiles"},
       choC:{type:"vector",url:"pmtiles://ka_c.pmtiles"},
       choD:{type:"vector",url:"pmtiles://ka_d.pmtiles"},
+      // 町丁名的标注点单独一份：23 万个点，塞回 ka_* 要重切 615MB 的面数据，
+      // 单独切只要 21MB，而且面数据一个字节都不用动。
+      chol:{type:"vector",url:"pmtiles://cholab.pmtiles"},
       ea :{type:"vector",url:"pmtiles://ea_units.pmtiles"},
       lak:{type:"vector",url:"pmtiles://ea_lakes.pmtiles"},
       riv:{type:"vector",url:"pmtiles://ea_rivers.pmtiles"}},
@@ -95,39 +98,67 @@ const map=new maplibregl.Map({
 
       // ── 現代日本 ──
       {id:"jp-fill",source:"jp","source-layer":"pref",type:"fill",paint:{"fill-color":prefColor}},
-      {id:"jp-muni",source:"jp","source-layer":"muni",type:"line",minzoom:7,
-        paint:{"line-color":"#6E7B88","line-width":["interpolate",["linear"],["zoom"],7,.25,12,.7],
-               "line-opacity":["interpolate",["linear"],["zoom"],7,.25,9,.65]}},
+      // 隐形填充层：只为命中测试。线层用 queryRenderedFeatures 只有正好点在线上才命中，
+      // 这就是之前"只有最外面那层点得动"的原因。
+      {id:"jp-muni-fill",source:"jp","source-layer":"muni",type:"fill",minzoom:6,
+        paint:{"fill-color":"#fff","fill-opacity":0.001}},
+      {id:"jp-muni",source:"jp","source-layer":"muni",type:"line",minzoom:6,
+        paint:{"line-color":"#45525F","line-width":["interpolate",["linear"],["zoom"],6,.35,9,.8,12,1.2],
+               "line-opacity":["interpolate",["linear"],["zoom"],6,.45,8,.85]}},
+      // 政令指定都市の行政区（171 个，OSM 现行版；浜松市 2024 年由 7 区并为 3 区）
+      {id:"jp-ku-fill",source:"jp","source-layer":"ku",type:"fill",minzoom:8,
+        paint:{"fill-color":"#fff","fill-opacity":0.001}},
+      {id:"jp-ku",source:"jp","source-layer":"ku",type:"line",minzoom:8,
+        paint:{"line-color":"#5A5560","line-width":["interpolate",["linear"],["zoom"],8,.4,12,1.0],
+               "line-opacity":["interpolate",["linear"],["zoom"],8,.5,10,.9],
+               "line-dasharray":[3,1.5]}},
       // 町丁・字等（令和2年国勢調査 小地域，232,009 个，47 县齐全）
       // OSM 同级只有 4,462 个且缺 14 个县，不可用，故这一级不走 OSM。
       {id:"jp-cho-fillA",source:"choA","source-layer":"cho",type:"fill",minzoom:11,
         paint:{"fill-color":"#ffffff","fill-opacity":0.001}},
       {id:"jp-choA",source:"choA","source-layer":"cho",type:"line",minzoom:11,
-        paint:{"line-color":"#8994A1",
-          "line-width":["interpolate",["linear"],["zoom"],11,0.25,14,0.6],
-          "line-opacity":["interpolate",["linear"],["zoom"],11,0.3,13,0.75]}},
+        paint:{"line-color":"#6F7B89",
+          "line-width":["interpolate",["linear"],["zoom"],11,0.45,14,0.9],
+          "line-opacity":["interpolate",["linear"],["zoom"],11,0.55,13,0.9]}},
       {id:"jp-cho-fillB",source:"choB","source-layer":"cho",type:"fill",minzoom:11,
         paint:{"fill-color":"#ffffff","fill-opacity":0.001}},
       {id:"jp-choB",source:"choB","source-layer":"cho",type:"line",minzoom:11,
-        paint:{"line-color":"#8994A1",
-          "line-width":["interpolate",["linear"],["zoom"],11,0.25,14,0.6],
-          "line-opacity":["interpolate",["linear"],["zoom"],11,0.3,13,0.75]}},
+        paint:{"line-color":"#6F7B89",
+          "line-width":["interpolate",["linear"],["zoom"],11,0.45,14,0.9],
+          "line-opacity":["interpolate",["linear"],["zoom"],11,0.55,13,0.9]}},
       {id:"jp-cho-fillC",source:"choC","source-layer":"cho",type:"fill",minzoom:11,
         paint:{"fill-color":"#ffffff","fill-opacity":0.001}},
       {id:"jp-choC",source:"choC","source-layer":"cho",type:"line",minzoom:11,
-        paint:{"line-color":"#8994A1",
-          "line-width":["interpolate",["linear"],["zoom"],11,0.25,14,0.6],
-          "line-opacity":["interpolate",["linear"],["zoom"],11,0.3,13,0.75]}},
+        paint:{"line-color":"#6F7B89",
+          "line-width":["interpolate",["linear"],["zoom"],11,0.45,14,0.9],
+          "line-opacity":["interpolate",["linear"],["zoom"],11,0.55,13,0.9]}},
       {id:"jp-cho-fillD",source:"choD","source-layer":"cho",type:"fill",minzoom:11,
         paint:{"fill-color":"#ffffff","fill-opacity":0.001}},
       {id:"jp-choD",source:"choD","source-layer":"cho",type:"line",minzoom:11,
-        paint:{"line-color":"#8994A1",
-          "line-width":["interpolate",["linear"],["zoom"],11,0.25,14,0.6],
-          "line-opacity":["interpolate",["linear"],["zoom"],11,0.3,13,0.75]}},
+        paint:{"line-color":"#6F7B89",
+          "line-width":["interpolate",["linear"],["zoom"],11,0.45,14,0.9],
+          "line-opacity":["interpolate",["linear"],["zoom"],11,0.55,13,0.9]}},
       {id:"jp-line",source:"jp","source-layer":"pref",type:"line",
-        paint:{"line-color":"#3D4A57","line-width":["interpolate",["linear"],["zoom"],4,.5,10,1.3]}},
+        paint:{"line-color":"#2B3742","line-width":["interpolate",["linear"],["zoom"],4,.6,10,1.8]}},
       {id:"jp-sel",source:"jp","source-layer":"pref",type:"line",
         filter:["==",["get","code"],-1],paint:{"line-color":"#1B2433","line-width":2.6}},
+      // 选中高亮：跟着点到的最细一级走，三层各一条
+      {id:"jp-selm",source:"jp","source-layer":"muni",type:"line",
+        filter:["==",["get","n"],"\u0000"],paint:{"line-color":"#1B2433","line-width":2.2}},
+      {id:"jp-selk",source:"jp","source-layer":"ku",type:"line",
+        filter:["==",["get","n"],"\u0000"],paint:{"line-color":"#5A2E6B","line-width":2.2}},
+      {id:"jp-selcA",source:"choA","source-layer":"cho",type:"line",minzoom:11,
+        filter:["==",["get","n"],"\u0000"],paint:{"line-color":"#B3541E","line-width":2.2}},
+      {id:"jp-selcB",source:"choB","source-layer":"cho",type:"line",minzoom:11,
+        filter:["==",["get","n"],"\u0000"],paint:{"line-color":"#B3541E","line-width":2.2}},
+      {id:"jp-selcC",source:"choC","source-layer":"cho",type:"line",minzoom:11,
+        filter:["==",["get","n"],"\u0000"],paint:{"line-color":"#B3541E","line-width":2.2}},
+      {id:"jp-selcD",source:"choD","source-layer":"cho",type:"line",minzoom:11,
+        filter:["==",["get","n"],"\u0000"],paint:{"line-color":"#B3541E","line-width":2.2}},
+      // 北方領土：之前完全空白（不在任何県的填色里），看着像海。按既定规则
+      // ——填色按实际管理——单独给一个"非日本实控"的颜色，再叠虚线范围与说明。
+      {id:"jp-disp-fill",source:"jp","source-layer":"disp",type:"fill",
+        paint:{"fill-color":"#B9AFA6","fill-opacity":0.85}},
       {id:"jp-disp",source:"jp","source-layer":"disp",type:"line",
         paint:{"line-color":"#8a3f3f","line-width":1.6,"line-dasharray":[2,1.5]}},
 
@@ -139,12 +170,26 @@ const map=new maplibregl.Map({
           "text-allow-overlap":false,"text-padding":0,"text-optional":true,
           "text-variable-anchor":["center","top","bottom","left","right"],"text-radial-offset":0.4},
         paint:{"text-color":"#243040","text-halo-color":"#fff","text-halo-width":1.4}},
-      // 市町村名：z8 起
+      // 市町村名：z8 起，z13 之后让位给町丁名
       {id:"jp-lab-muni",source:"jp","source-layer":"munilab",type:"symbol",minzoom:8,
         layout:{"text-field":["get","n"],"text-font":["NotoSansJP Regular"],
           "text-size":["interpolate",["linear"],["zoom"],8,9.5,12,13],"text-padding":0,
           "text-variable-anchor":["center","top","bottom"],"text-radial-offset":0.3},
-        paint:{"text-color":"#3a4654","text-halo-color":"#fff","text-halo-width":1.3}},
+        paint:{"text-color":"#3a4654","text-halo-color":"#fff","text-halo-width":1.3,
+          "text-opacity":["interpolate",["linear"],["zoom"],12.5,1,13.5,0.45]}},
+      // 政令市の区名：z10 起。政令市自己的名字这时已经没有信息量了，区名才有。
+      {id:"jp-lab-ku",source:"jp","source-layer":"kulab",type:"symbol",minzoom:10,
+        layout:{"text-field":["get","n"],"text-font":["NotoSansJP Regular"],
+          "text-size":["interpolate",["linear"],["zoom"],10,10,13,13.5],"text-padding":1,
+          "text-variable-anchor":["center","top","bottom"],"text-radial-offset":0.3},
+        paint:{"text-color":"#4a4152","text-halo-color":"#fff","text-halo-width":1.4}},
+      // 町丁名：z13 起。23 万个点，靠 MapLibre 自己的避让决定画哪些。
+      {id:"jp-lab-cho",source:"chol","source-layer":"cholab",type:"symbol",minzoom:13,
+        layout:{"text-field":["get","n"],"text-font":["NotoSansJP Regular"],
+          "text-size":["interpolate",["linear"],["zoom"],13,9.5,15,12],"text-padding":1,
+          "text-optional":true,"text-variable-anchor":["center","top","bottom","left","right"],
+          "text-radial-offset":0.35},
+        paint:{"text-color":"#55606D","text-halo-color":"#fff","text-halo-width":1.3}},
       // 争议/分歧范围的说明文字 —— 之前只有虚线看不懂，这条补上
       {id:"jp-lab-disp",source:"jp","source-layer":"displab",type:"symbol",
         layout:{"text-field":["concat",["get","dn"],"\n",["get","note"]],
@@ -167,7 +212,10 @@ window.map=map;  // 供自动截图验收脚本使用
 map.touchZoomRotate.disableRotation();
 window.__map=map;
 
-const JP=["jp-fill","jp-cho-fillA","jp-choA","jp-cho-fillB","jp-choB","jp-cho-fillC","jp-choC","jp-cho-fillD","jp-choD","jp-muni","jp-line","jp-sel","jp-disp","jp-lab","jp-lab-muni","jp-lab-disp"];
+const JP=["jp-fill","jp-cho-fillA","jp-choA","jp-cho-fillB","jp-choB","jp-cho-fillC","jp-choC","jp-cho-fillD","jp-choD",
+  "jp-muni-fill","jp-muni","jp-ku-fill","jp-ku","jp-line","jp-sel","jp-selm","jp-selk",
+  "jp-selcA","jp-selcB","jp-selcC","jp-selcD","jp-disp-fill","jp-disp",
+  "jp-lab","jp-lab-muni","jp-lab-ku","jp-lab-cho","jp-lab-disp"];
 const EA=["ea-fill","ea-water","ea-riv","ea-line","ea-sel","ea-disp","ea-lab","ea-lab-disp"];
 let region="jp";
 
@@ -195,20 +243,34 @@ map.on("click",e=>{
   const dispId=region==="jp"?"jp-disp":"ea-disp";
   const hit=map.queryRenderedFeatures(e.point,{layers:[fillId]})[0];
   if(!hit){ map.setFilter(selId, region==="jp"?["==",["get","code"],-1]:["==",["get","n"],"\u0000"]);
+            if(region==="jp") ["jp-selm","jp-selk","jp-selcA","jp-selcB","jp-selcC","jp-selcD"].forEach(id=>map.setFilter(id,["==",["get","n"],"\u0000"]));
             c.style.display="none"; return; }
   const p=hit.properties, d=map.queryRenderedFeatures(e.point,{layers:[dispId]})[0];
   let html;
   if(region==="jp"){
     map.setFilter(selId,["==",["get","code"],p.code]);
-    const mu=map.queryRenderedFeatures(e.point,{layers:["jp-muni"]})[0];
+    // 命中测试一律打填充层。之前这里打的是 jp-muni（线层），
+    // 只有正好点在边界线上才返回要素，所以市町村那一级几乎永远点不出来。
+    const mu=map.queryRenderedFeatures(e.point,{layers:["jp-muni-fill"]})[0];
+    const ku=map.queryRenderedFeatures(e.point,{layers:["jp-ku-fill"]})[0];
     const ch=map.queryRenderedFeatures(e.point,{layers:["jp-cho-fillA","jp-cho-fillB","jp-cho-fillC","jp-cho-fillD"]})[0];
+    // 高亮跟着当前能看到的最细一级走，而不是永远框住整个県
+    const chName = (ch&&ch.properties&&ch.properties.n) ? ch.properties.n : "\u0000";
+    ["jp-selcA","jp-selcB","jp-selcC","jp-selcD"].forEach(id=>map.setFilter(id,["==",["get","n"],chName]));
+    map.setFilter("jp-selk", ku ? ["==",["get","n"],ku.properties.n] : ["==",["get","n"],"\u0000"]);
+    map.setFilter("jp-selm", mu ? ["all",["==",["get","n"],mu.properties.n],["==",["get","pref"],mu.properties.pref]]
+                                : ["==",["get","n"],"\u0000"]);
     html=`<div class="n">${p.n}</div><div class="sub">県庁：${p.cap}　地方：${p.regn}</div>`;
     if(mu&&mu.properties&&mu.properties.n) html+=`<div class="sub">市町村：${mu.properties.n}</div>`;
+    if(ku&&ku.properties&&ku.properties.n) html+=`<div class="sub">行政区：${ku.properties.n}</div>`;
     if(ch&&ch.properties&&ch.properties.n){
-      const c=ch.properties;
-      html+=`<div class="sub">町丁：${c.n}</div>`;
-      if(c.pop) html+=`<div class="sub">人口 ${Number(c.pop).toLocaleString()} 人 ／ ${Number(c.hh).toLocaleString()} 世帯 <span style="opacity:.7">（令和2年）</span></div>`;
+      const cc=ch.properties;
+      html+=`<div class="sub">町丁：${cc.n}</div>`;
+      if(cc.pop) html+=`<div class="sub">人口 ${Number(cc.pop).toLocaleString()} 人 ／ ${Number(cc.hh).toLocaleString()} 世帯 <span style="opacity:.7">（令和2年）</span></div>`;
     }
+    const dd=map.queryRenderedFeatures(e.point,{layers:["jp-disp-fill"]})[0];
+    if(dd&&dd.properties&&dd.properties.dn)
+      html+=`<div class="sub" style="color:#8a3f3f">${dd.properties.dn}：${dd.properties.note}</div>`;
   }else{
     map.setFilter(selId,["==",["get","n"],p.n]);
     html=`<div class="n">${p.n}</div><div class="sub">${p.grp}</div>`;
