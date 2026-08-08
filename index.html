@@ -27,6 +27,71 @@ a.card .wip{color:var(--muted)}
 .scaffold a:hover{color:var(--hover);text-decoration:underline}
 footer{margin-top:34px;font-size:11.5px;color:var(--muted);max-width:680px;line-height:1.7}
 @media (max-width:480px){header h1{font-size:22px} a.card h2{font-size:17px}}
+
+/* ---------- Claw'd ---------- */
+/* 8 秒循环：待机 → 右钳伸到身后掏出笔电 → 移到左边 → 掀开屏幕 → 左钳敲键盘。
+   全部内联 SVG + CSS 关键帧，无外部资源、无 JS。 */
+.clawd{width:100%;max-width:680px;margin:0 0 24px;background:#F0EEE6;border:1px solid var(--line);
+  border-radius:10px;padding:12px 16px;display:flex;align-items:center;gap:16px;overflow:hidden}
+.clawd svg{display:block;flex:0 0 auto}
+.clawd .say{font-size:12.5px;color:var(--muted);line-height:1.6;min-width:0}
+.clawd .say b{color:var(--soft);font-weight:800}
+
+@keyframes cd-bob{0%,100%{transform:translateY(0)}50%{transform:translateY(-2px)}}
+#cd-crab{animation:cd-bob 1.7s ease-in-out infinite}
+
+/* 笔电：藏在蟹身后 → 掏出 → 滑到左边 */
+@keyframes cd-laptop{
+  0%,15%   {transform:translate(96px,16px) scale(.28);opacity:0}
+  19%      {transform:translate(92px,10px) scale(.5); opacity:1}
+  30%      {transform:translate(46px,3px)  scale(.82);opacity:1}
+  38%,100% {transform:translate(0,0)       scale(1);  opacity:1}
+}
+#cd-laptop{animation:cd-laptop 8s cubic-bezier(.32,.86,.3,1) infinite}
+@keyframes cd-lid{0%,38%{transform:rotateX(-86deg)}48%,100%{transform:rotateX(0)}}
+#cd-lid{animation:cd-lid 8s cubic-bezier(.3,1.25,.4,1) infinite;transform-origin:bottom;transform-box:fill-box}
+
+/* 右钳：伸到身后掏东西 */
+@keyframes cd-clawR{
+  0%,13%  {transform:rotate(0) translate(0,0)}
+  19%     {transform:rotate(38deg) translate(5px,7px)}
+  28%     {transform:rotate(12deg) translate(1px,2px)}
+  38%,100%{transform:rotate(0) translate(0,0)}
+}
+#cd-clawR{animation:cd-clawR 8s ease-in-out infinite;transform-origin:left center;transform-box:fill-box}
+
+/* 左钳：伸到键盘上敲 */
+@keyframes cd-clawL{
+  0%,36%  {transform:translate(0,0) rotate(0)}
+  46%     {transform:translate(-14px,4px) rotate(-8deg)}
+  50%{transform:translate(-14px,8px) rotate(-8deg)} 54%{transform:translate(-14px,4px) rotate(-8deg)}
+  60%{transform:translate(-16px,8px) rotate(-10deg)}64%{transform:translate(-16px,4px) rotate(-10deg)}
+  72%{transform:translate(-13px,8px) rotate(-6deg)} 76%{transform:translate(-13px,4px) rotate(-6deg)}
+  86%{transform:translate(-15px,8px) rotate(-9deg)} 90%{transform:translate(-15px,4px) rotate(-9deg)}
+  96%,100%{transform:translate(0,0) rotate(0)}
+}
+#cd-clawL{animation:cd-clawL 8s ease-in-out infinite;transform-origin:right center;transform-box:fill-box}
+
+@keyframes cd-eye{0%,93%,100%{transform:scaleY(1)}96%{transform:scaleY(.12)}}
+.cd-eye{animation:cd-eye 4.4s ease-in-out infinite;transform-origin:center;transform-box:fill-box}
+
+.cd-code{opacity:0}
+@keyframes cd-line{0%,48%{opacity:0;transform:translateX(-4px)}54%,100%{opacity:1;transform:translateX(0)}}
+#cl1{animation:cd-line 8s ease-out infinite}
+#cl2{animation:cd-line 8s ease-out infinite;animation-delay:.45s}
+#cl3{animation:cd-line 8s ease-out infinite;animation-delay:.9s}
+#cl4{animation:cd-line 8s ease-out infinite;animation-delay:1.35s}
+#cl5{animation:cd-line 8s ease-out infinite;animation-delay:1.8s}
+@keyframes cd-caretOn{0%,52%{opacity:0}56%,100%{opacity:1}}
+@keyframes cd-blink{0%,49%{opacity:1}50%,100%{opacity:0}}
+#cd-caret{animation:cd-caretOn 8s steps(1,end) infinite, cd-blink .85s steps(1,end) infinite}
+
+@media (prefers-reduced-motion:reduce){
+  #cd-crab,#cd-laptop,#cd-lid,#cd-clawL,#cd-clawR,.cd-eye,.cd-code,#cd-caret{animation:none!important}
+  #cd-laptop{transform:none;opacity:1}#cd-lid{transform:none}.cd-code{opacity:1}
+}
+@media (max-width:480px){.clawd{gap:10px;padding:10px 12px}.clawd .say{font-size:11.5px}}
+
 </style>
 </head>
 <body>
@@ -35,6 +100,64 @@ footer{margin-top:34px;font-size:11.5px;color:var(--muted);max-width:680px;line-
   <h1>地図ツール</h1>
   <div class="note">按「打开它是为了做什么」分成两个入口，而不是按地图种类分。底层共用同一套渲染引擎与瓦片数据。</div>
 </header>
+
+<!-- CLAWD:START -->
+<div class="clawd" aria-label="Claw'd 正在敲代码">
+  <svg width="182" height="88" viewBox="0 0 182 88" role="img">
+    <title>Claw'd 掏出笔电开始敲代码</title>
+
+    <!-- 笔电（左） -->
+    <g id="cd-laptop">
+      <g id="cd-lid">
+        <rect x="8" y="14" width="66" height="42" rx="4" fill="#1B2433"/>
+        <rect x="11.5" y="17.5" width="59" height="35" rx="2.5" fill="#0E141C"/>
+        <g class="cd-code" id="cl1"><rect x="16" y="22"   width="22" height="2.8" rx="1.4" fill="#7FB7D9"/></g>
+        <g class="cd-code" id="cl2"><rect x="16" y="28"   width="37" height="2.8" rx="1.4" fill="#9BD3A8"/></g>
+        <g class="cd-code" id="cl3"><rect x="20" y="34"   width="28" height="2.8" rx="1.4" fill="#E6C97A"/></g>
+        <g class="cd-code" id="cl4"><rect x="20" y="40"   width="41" height="2.8" rx="1.4" fill="#9BD3A8"/></g>
+        <g class="cd-code" id="cl5"><rect x="16" y="46"   width="18" height="2.8" rx="1.4" fill="#7FB7D9"/></g>
+        <rect id="cd-caret" x="36" y="46" width="2.2" height="2.8" fill="#F0EEE6"/>
+      </g>
+      <path d="M4 56 h74 l7 9 H-3 Z" fill="#CBD4DC" stroke="#9FAEBC" stroke-width=".9"/>
+      <rect x="32" y="59.5" width="22" height="1.8" rx=".9" fill="#8C9AA8"/>
+    </g>
+
+    <!-- 螃蟹（右）。定位放外层，动画放内层——
+         SVG 的 transform 属性会被 CSS transform 动画整个覆盖，不能写在同一个元素上。 -->
+    <g transform="translate(92,8)"><g id="cd-crab">
+      <g stroke="#B85A3C" stroke-width="3" stroke-linecap="round" fill="none">
+        <path d="M20 50 l-9 8"/><path d="M27 53 l-6 9"/><path d="M35 54 l-2 9"/>
+        <path d="M50 50 l9 8"/><path d="M43 53 l6 9"/><path d="M35 54 l2 9"/>
+      </g>
+      <!-- 左钳：会伸过去敲键盘 -->
+      <g id="cd-clawL">
+        <path d="M22 42 l-11 3" stroke="#B85A3C" stroke-width="4.5" stroke-linecap="round"/>
+        <path d="M11 45 q-10 -7 -13 1 q-1 7 6.5 7 q5.5 0 6.5 -8 Z" fill="#D97757"/>
+        <path d="M0 39 q-5 2 -3 6" stroke="#B85A3C" stroke-width="3" fill="none" stroke-linecap="round"/>
+      </g>
+      <!-- 右钳：去身后掏笔电 -->
+      <g id="cd-clawR">
+        <path d="M48 42 l11 3" stroke="#B85A3C" stroke-width="4.5" stroke-linecap="round"/>
+        <path d="M59 45 q10 -7 13 1 q1 7 -6.5 7 q-5.5 0 -6.5 -8 Z" fill="#D97757"/>
+        <path d="M70 39 q5 2 3 6" stroke="#B85A3C" stroke-width="3" fill="none" stroke-linecap="round"/>
+      </g>
+      <!-- 眼柄 + 眼 -->
+      <rect x="24" y="12" width="3.2" height="12" rx="1.6" fill="#B85A3C"/>
+      <rect x="42" y="12" width="3.2" height="12" rx="1.6" fill="#B85A3C"/>
+      <circle class="cd-eye" cx="25.6" cy="10" r="5" fill="#FFF" stroke="#B85A3C" stroke-width="1"/>
+      <circle class="cd-eye" cx="43.6" cy="10" r="5" fill="#FFF" stroke="#B85A3C" stroke-width="1"/>
+      <circle cx="25.6" cy="10" r="2.3" fill="#1B2433"/>
+      <circle cx="43.6" cy="10" r="2.3" fill="#1B2433"/>
+      <!-- 身体 -->
+      <ellipse cx="35" cy="40" rx="26" ry="17" fill="#C96A4B"/>
+      <ellipse cx="35" cy="36" rx="26" ry="14" fill="#D97757"/>
+      <ellipse cx="35" cy="32" rx="20" ry="8" fill="#E28C6E" opacity=".55"/>
+      <path d="M29 40 q6 5 12 0" stroke="#A44B30" stroke-width="2" fill="none" stroke-linecap="round"/>
+    </g></g>
+  </svg>
+  <div class="say"><b>Claw'd</b> 正在重写这些地图。<br>数据换成 OSM 原始数据，渲染换成 MapLibre。</div>
+</div>
+<!-- CLAWD:END -->
 
 <div class="cards">
   <a class="card quiz" href="quiz/japan-map-quiz.html">
