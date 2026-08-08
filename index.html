@@ -34,10 +34,18 @@ footer{margin-top:34px;font-size:11.5px;color:var(--muted);max-width:680px;line-
    动画内容只占画布的 x 733..2437 / y 700..1850（约 61.9% x 62.2%），
    其余是透明留白，所以这里用一个窗口把有内容的那块放大平移出来，
    JSON 本身一个字节都没动。lottie_light 是官方页面同款播放器（MIT）。*/
-.clawd{width:100%;max-width:680px;margin:-2px 0 22px;display:flex;align-items:flex-end;gap:13px}
-.clawd .stage{position:relative;width:104px;height:70px;overflow:hidden;flex:none;cursor:pointer}
-.clawd .stage>div{position:absolute;width:161.44%;height:160.87%;left:-43.05%;top:-60.87%}
-.clawd .stage svg{display:block}
+.clawd{width:100%;max-width:680px;margin:-2px 0 22px;display:flex;align-items:center;gap:14px}
+/* 取景框 = 全 43 帧内容的并集（源画布 2750x1850 里的 x 733..2437 / y 700..1850），
+   一帧都不裁，笔电伸最远、天线窜最高的那两帧也完整。
+   螃蟹站姿只占框的下半部（y 1050..1850），所以框心比蟹心高 15.2%——
+   靠 translateY 把整块往上挪这么多，让**螃蟹**跟右边文字视觉居中，
+   而不是让**框**居中。挪的是位置，不是裁剪。 */
+.clawd .stage{position:relative;width:126px;height:85px;overflow:hidden;flex:none;cursor:pointer;
+  transform:translateY(-15.2%);
+  -webkit-tap-highlight-color:transparent;outline:none;user-select:none;-webkit-user-select:none}
+.clawd .stage::-moz-focus-inner{border:0}
+.clawd .stage>div{position:absolute;width:161.38%;height:160.87%;left:-43.02%;top:-60.87%}
+.clawd .stage svg{display:block;pointer-events:none}
 .clawd .say{font-size:12.5px;color:var(--soft);line-height:1.65;padding-bottom:6px}
 .clawd .say .who{font-weight:700;color:var(--ink)}
 .clawd .say .hint{color:var(--muted);font-size:11.5px}
