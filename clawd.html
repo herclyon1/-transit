@@ -1,0 +1,14 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Claw'd</title>
+<style>
+body{margin:0;background:#E9EDF0;display:grid;place-items:center;min-height:100vh}
+</style>
+<!-- 单独预览用；正式的组件在 index.html 里 -->
+<div id="host"></div>
+<script>
+fetch('index.html').then(r=>r.text()).then(t=>{
+  const m=t.match(/<!-- CLAWD:START -->([\s\S]*?)<!-- CLAWD:END -->/);
+  document.getElementById('host').innerHTML=m?m[1]:'not found';
+});
+</script>
