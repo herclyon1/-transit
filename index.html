@@ -28,30 +28,19 @@ a.card .wip{color:var(--muted)}
 footer{margin-top:34px;font-size:11.5px;color:var(--muted);max-width:680px;line-height:1.7}
 @media (max-width:480px){header h1{font-size:22px} a.card h2{font-size:17px}}
 
-/* ---------- Claw'd（官方精灵图，逐字符还原） ---------- */
-/* 这不是我画的。字符、空格、配色全部按 Claude Code 里的 RBA() 组件原样搬过来：
-     "    "✻"   "      warning = rgb(255,193,7)
-     "    "│"   "      暗色
-     "   "▟█▙"  "      warning
-     " ▐" + "▛███▜"(黑底) + "▌"      clawd_body = rgb(215,119,87)
-     "▝▜" + "█████"(黑底) + "▛▘"     黑底透出来的就是眼睛
-     "  ▘▘ ▝▝  "                      腿
-   Claw'd 是螃蟹（Claude + claw 的双关）。之前我画的蟹和像素狗都已删除。 */
+/* ---------- Claw'd ---------- */
+/* 这不是我画的。取自社区项目 clawd-emotes-skill（MIT，xixicc186）的 "coding" 表情：
+   纯 SVG + CSS 关键帧的像素蟹，笔电、代码行、眨眼、呼吸都是原作自带的。
+   我先前自制的三版（矢量蟹 / 像素狗 / 自拼终端字符）已全部删除，
+   包括我另外画在左边的那台笔电——那台是多余的，原作里蟹自己就捧着一台。 */
 .clawd{width:100%;max-width:680px;margin:0 0 24px;background:#FBFAF7;border:1px solid var(--line);
-  border-radius:10px;padding:16px;display:flex;align-items:center;gap:18px;overflow:hidden;flex-wrap:wrap}
-.cd-sprite{flex:0 0 auto;margin:0;
-  font-family:'DejaVu Sans Mono','Menlo','Consolas','Courier New',monospace;
-  font-size:18px;line-height:1.0;white-space:pre;color:#D77757;letter-spacing:0}
-.cd-sprite .w{color:#FFC107}
-.cd-sprite .d{color:#9AA3AC}
-.cd-sprite .k{background:#000}
-.clawd .say{font-size:12.5px;color:var(--muted);line-height:1.6;flex:1 1 190px;min-width:0}
+  border-radius:10px;padding:14px 16px;display:flex;align-items:center;gap:14px;overflow:hidden;flex-wrap:wrap}
+.clawd svg{display:block;flex:0 0 auto}
+.clawd .say{font-size:12.5px;color:var(--muted);line-height:1.6;flex:1 1 200px;min-width:0}
 .clawd .say b{color:var(--soft);font-weight:800}
-/* 官方是静态的；这里让眼睛那两段黑底轻微闪动，表示它在干活 */
-@keyframes cd-work{0%,88%{opacity:1}92%{opacity:.55}96%,100%{opacity:1}}
-#cd-eye{animation:cd-work 2.6s steps(1,end) infinite}
-@media (prefers-reduced-motion:reduce){#cd-eye{animation:none!important}}
-@media (max-width:480px){.clawd{gap:12px;padding:12px}.clawd .say{font-size:11.5px}.cd-sprite{font-size:15px}}
+.clawd .credit{font-size:10.5px;color:#9AA3AC;margin-top:5px}
+.clawd .credit a{color:#9AA3AC}
+@media (max-width:480px){.clawd{gap:10px;padding:12px}.clawd .say{font-size:11.5px}}
 
 </style>
 </head>
@@ -64,13 +53,54 @@ footer{margin-top:34px;font-size:11.5px;color:var(--muted);max-width:680px;line-
 
 <!-- CLAWD:START -->
 <div class="clawd">
-  <pre class="cd-sprite" aria-label="Claw'd"><span>    </span><span class="w">✻</span><span>   </span>
-<span>    </span><span class="d">│</span><span>   </span>
-<span>   </span><span class="w">▟█▙</span><span>  </span>
- ▐<span class="k" id="cd-eye">▛███▜</span>▌
-▝▜<span class="k">█████</span>▛▘
-  ▘▘ ▝▝  </pre>
-  <div class="say"><b>Claw'd</b> 正在重写这些地图。<br>数据换成 OSM 原始数据，渲染换成 MapLibre。</div>
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="-1.5 4.5 18 13" width="126" height="91" shape-rendering="crispEdges" aria-hidden="true">
+      <defs><style>
+        .cd-body{transform-origin:7.5px 13px;animation:cd-focus 2.4s infinite ease-in-out;}
+        .cd-shad{transform-origin:7.5px 15.5px;animation:cd-shadow 2.4s infinite ease-in-out;}
+        .cd-eye {transform-origin:7.5px 9px;animation:cd-blink 2.8s infinite;}
+        .cd-glow{animation:cd-glow .6s infinite alternate ease-in-out;}
+        .cd-cur {animation:cd-cur 1s steps(1) infinite;}
+        .cd-l1  {animation:cd-type 1.8s steps(1) infinite;}
+        .cd-l2  {animation:cd-type 1.8s -.6s steps(1) infinite;}
+        .cd-l3  {animation:cd-type 1.8s -1.2s steps(1) infinite;}
+        @keyframes cd-focus{0%,100%{transform:translateY(0);}50%{transform:translateY(-.3px);}}
+        @keyframes cd-shadow{0%,100%{transform:scaleX(1);opacity:.5;}50%{transform:scaleX(.98);opacity:.47;}}
+        @keyframes cd-blink{0%,47%,53%,100%{transform:scaleY(1);}50%{transform:scaleY(.1);}}
+        @keyframes cd-glow{0%{opacity:.08;}100%{opacity:.2;}}
+        @keyframes cd-cur{0%,50%{opacity:1;}51%,100%{opacity:0;}}
+        @keyframes cd-type{0%,100%{transform:scaleX(.5);}50%{transform:scaleX(1);}}
+      </style></defs>
+  
+      <rect class="cd-shad" x="3" y="15" width="9" height="1" fill="#000" opacity=".5"/>
+      <g class="cd-body">
+        <g fill="#DE886D">
+          <rect x="3" y="13" width="1" height="2"/><rect x="5" y="13" width="1" height="2"/>
+          <rect x="9" y="13" width="1" height="2"/><rect x="11" y="13" width="1" height="2"/>
+        </g>
+        <rect x="2" y="6" width="11" height="7" fill="#DE886D"/>
+        <rect class="cd-glow" x="2" y="6" width="11" height="4" rx="1" fill="#4fd6a0"/>
+        <rect x="0" y="9" width="2" height="2" fill="#DE886D"/>
+        <rect x="13" y="9" width="2" height="2" fill="#DE886D"/>
+        <g class="cd-eye" fill="#000"><rect x="4" y="8" width="1" height="2"/><rect x="10" y="8" width="1" height="2"/></g>
+        <!-- laptop (foreground, screen faces us; eyes peek over the top) -->
+        <g>
+          <rect x="0.4" y="9.9" width="14.2" height="5.2" rx=".5" fill="#23272f"/>
+          <rect x="1.3" y="10.6" width="12.4" height="3.8" rx=".3" fill="#0c1018"/>
+          <!-- code lines -->
+          <rect class="cd-l1" style="transform-origin:2.2px 11.3px" x="2.2" y="11" width="4"   height=".7" rx=".2" fill="#ff79c6"/>
+          <rect             x="6.8" y="11" width="3"   height=".7" rx=".2" fill="#8be9fd"/>
+          <rect class="cd-l2" style="transform-origin:3px 12.4px"  x="3"   y="12.1" width="5"   height=".7" rx=".2" fill="#50fa7b"/>
+          <rect             x="8.6" y="12.1" width="2.4" height=".7" rx=".2" fill="#f1fa8c"/>
+          <rect class="cd-l3" style="transform-origin:2.2px 13.5px" x="2.2" y="13.2" width="3.4" height=".7" rx=".2" fill="#bd93f9"/>
+          <rect class="cd-cur" x="6" y="13.2" width=".7" height=".8" fill="#fff"/>
+          <!-- hinge / base -->
+          <rect x="-.4" y="15" width="15.4" height="1" rx=".4" fill="#2f343d"/>
+        </g>
+      </g>
+      </svg>
+  <div class="say"><b>Claw'd</b> 正在重写这些地图。<br>数据换成 OSM 原始数据，渲染换成 MapLibre。
+    <div class="credit">Claw'd 像素表情来自 <a href="https://github.com/xixicc186/clawd-emotes-skill">clawd-emotes-skill</a>（MIT）</div>
+  </div>
 </div>
 <!-- CLAWD:END -->
 
