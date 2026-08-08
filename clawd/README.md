@@ -1,44 +1,50 @@
 # Claw'd 素材来源
 
-这个目录里的三个文件都是**从 Anthropic 自己的服务器原样下载的**，一个字节都没改，
-也没有任何我自己画的部分。之前几轮我自己拼 SVG，怎么都对不上，那条路已经废弃。
+这里的动画和静图都是**从 Anthropic 自己的服务器原样下载的**，一个字节都没改，
+没有任何我自己画的部分。前面几轮我自己拼 SVG 怎么都对不上，那条路已经废弃。
 
 | 文件 | 来源 URL | 大小 |
 |---|---|---|
+| `clawd-laptop.json` | `https://assets-proxy.anthropic.com/claude-ai/v2/assets/v1/c838f53ee-DqwARLA7.json` | 106 KB |
 | `clawd.svg` | `https://claude.ai/images/clawd.svg` | 322 B |
-| `clawd-laptop.webm` | `https://claude.com/images/install-hub/clawd-laptop.webm` | 31 KB |
-| `clawd-laptop.mov` | `https://claude.com/images/install-hub/clawd-laptop.mov` | 128 KB |
+| `lottie_light.min.js` | lottie-web 5.12.2（MIT），官方页面同款播放器 | 164 KB |
 
-- `clawd.svg`：viewBox `0 0 66 52`，body `#D97757`，眼睛 `#141413`。
-- 两个视频是同一段动画的两种封装：**2750×1850、12fps、43 帧、带透明通道**。
-  webm 是 VP9 + alpha（Chrome/Firefox），mov 是 HEVC + alpha（Safari）。
-  `<source>` 里 mov 必须排在前面，Safari 才会选它；Chrome 不认 quicktime 会自动跳到 webm。
-- 动画内容只占画布的 `x 736..2036 / y 850..1850`，其余是透明留白。
-  首页没有裁剪文件，而是用一个 130×100 的窗口把这块放大平移出来（见 index.html 的 CSS 注释）。
+- `clawd-laptop.json`：Lottie 5.7.4，内部名 **`Clawd-Laptop`**，`2750×1850`，**12fps、43 帧**。
+  这就是 claude.ai/code 上那段「掏出笔电、转身、打字、收起来」的动画本体。
+- `clawd.svg`：viewBox `0 0 66 52`，body `#D97757`，眼睛 `#141413`。当播放器没加载出来时做兜底。
+- 动画内容只占画布 `x 733..2437 / y 700..1850`（约 61.9% × 62.2%），其余是透明留白。
+  首页没有改 JSON，而是用一个 178×120 的窗口把这块放大平移出来（见 index.html 的 CSS 注释）。
+- 方向：笔电出在螃蟹**右侧**。这就是官方的样子——官方页面上包裹这个动画的
+  三层 div 是 `relative h-0 …` / `pointer-events-auto` / `w-full h-full`，
+  **没有任何水平翻转**，所以这里也不翻。
 
-验证：把首页 `.stage` 截图与 `clawd-laptop.webm` 第 1 帧按同一裁剪框逐像素比对，**吻合 98.3%**，
-差异全部落在缩放后的一行边缘上。轮廓与 `clawd.svg` 的 path 完全一致。
+## 验收
+
+把官方页面 `.mht` 里那一帧（即 claude.ai 自己渲染出来的 DOM）与本地播放的 43 帧
+逐一按内容框归一化后比对：
+
+- 最吻合帧 **99.59%**（第 2/3/41/42 帧，都是正面站立那一姿势）
+- 内容框宽高比 官方 **1.502** vs 本地 **1.504**
 
 ## 怎么找到的
 
-1. 用户存下的官方页面 `.mht` 里没有任何图片分段，但 HTML 里有一段 52 KB 的
-   inline SVG，容器 id 是 `__lottie_element_30`，viewBox 正好 2750×1850 —— 说明官方用的是 Lottie。
-2. `.mht` 不保存 JS，但里面的 `<script src>` 指向 `assets-proxy.anthropic.com`，**这个域名可以直接访问**。
-   下载那 32 个 chunk，从里面的 `import("./cXXXXXXXX-YYYYYYYY.js")` 抽出 417 个懒加载 chunk 全部下载，
-   再 grep 就拿到了 `/images/clawd.svg` 和 `/images/install-hub/clawd-laptop.{mov,webm}`。
-3. `claude.ai` 对普通请求返回 403（Cloudflare），但**带浏览器 UA 时静态图片可以下**；
-   `claude.com` 则整个开放。两边配合就把文件拿全了。
+1. 用户存下的官方页面 `.mht` 里没有图片分段，但 HTML 里有一段 52 KB 的 inline SVG，
+   容器 id 是 `__lottie_element_30`，viewBox 正好 `2750×1850` —— 说明官方用的是 Lottie。
+2. `.mht` 不保存 JS，但 `<script src>` 指向 `assets-proxy.anthropic.com`，**这个域名可以直接访问**。
+   下载那 32 个 chunk，从 `import("./cXXXXXXXX-YYYYYYYY.js")` 抽出懒加载 chunk 再下一轮，
+   两层展开后共 966 个。
+3. grep 到组件 `ClawdLaptopInner`，它 `import { c, l }` 自 `c11959232-Dz1wkkE8.js`，
+   把 `l` 的定义挖出来就是**写死的 URL**：
+   ```js
+   Bh = "https://assets-proxy.anthropic.com/claude-ai/v2/assets/v1/c838f53ee-DqwARLA7.json"
+   ```
+   直接 curl 就下来了。
 
-## 还差的那一个：敲键盘的 Lottie
+## 走过的两条弯路（留着免得再踩）
 
-页面上那段「掏出笔电打字」的动画是 `https://claude.ai/animations/code-terminal.json`
-（同目录还有 object-browsers / object-clouds / object-shield）。
-
-**这个拿不到**：该路径对任何未登录请求都返回 `{"error":{"type":"forbidden"}}`，
-换 UA、换 Referer、走无头浏览器都一样；`claude.com` 和 assets-proxy 上都是 404。
-用户存的 `.mht` 里也没有——Chrome 保存 MHTML 时不保存 XHR 拿回来的 JSON，
-只留下了渲染完的那一帧 DOM（`pipeline/official_lottie_frame.svg` 留档，44 条 path，
-其中 9 条灰色的是笔电）。
-
-要补齐只需要一步：**在手机浏览器里登录状态下打开那个 URL，把 JSON 存下来给我**，
-放进这个目录再用 lottie-web 播放即可，同样不用自己画。
+- `claude.com/images/install-hub/clawd-laptop.webm` / `.mov`（2750×1850、12fps、43 帧、带 alpha）
+  也是官方文件，但**里面没有笔电**——43 帧全扫过，一个灰色像素都没有，
+  只有螃蟹转身。名字里的 laptop 指的是「桌面端安装页」，不是道具。已从仓库移除。
+- `claude.ai/animations/code-terminal.json` 内部名 `Object-CodeTerminal-lottie`，
+  1200×1200、44 帧，是那个 `</>` 终端窗口图标，**不是螃蟹**。
+  该路径对未登录请求返回 403，需要登录才能下。
