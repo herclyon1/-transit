@@ -975,6 +975,9 @@ function eaTargetTier(k){
   let want=0; while(want<EA_TIERS.length-1 && k>EA_TIERS[want].upTo) want++;
   eaWant=want;
   if(!EA[want]) eaLoad(want,()=>{ if(mode==="kyoeiken"){ eaApplyTier(); eaDraw(); } });
+  // 用户一旦放大到需要 t1, 就顺带把 t2 预取了: 6.8MB 的 JSON.parse 在 4x 降速机上要 0.5~1.3 秒,
+  // 让它发生在"看着静止地图"的时候, 而不是等到深缩放手势中途才卡一下。
+  if(want>=1 && !EA[2] && !eaLoading[2]) setTimeout(()=>{ if(mode==="kyoeiken") eaLoad(2); }, 1500);
   let use=want; while(use>0 && !EA[use]) use--;
   return EA[use]?use:-1;
 }
@@ -1009,7 +1012,7 @@ function eaApplyTier(){ // 把 kyoFeats 的几何换成目标档(仅换档时执
   eaUsrc=EA[t]; eaUidx=new Map();
   EA[t].objects.units.geometries.forEach(g=>eaUidx.set(g.properties.a+"|"+g.properties.n, g));
   kyoFeats.units.forEach(u=>{ if(u._tier!==9) u._tier=-1; });
-  eaInvalidate();
+  eaInvalidateCells();   // 只丢裁剪缓存, 保留按档的整块缓存
   return true;
 }
 function eaViewBox(){ // 视口的经纬包围盒(含60%余量)与投影裁剪框
@@ -1054,7 +1057,7 @@ let eaIdleT=0;
 function eaResize(low){
   const cv=$("eaCv"), w=$("stage").clientWidth, h=$("stage").clientHeight;
   // 运动中的重绘用 0.55 倍后备缓冲(像素数约1/3), 停手后的那次重绘才用全分辨率 —— 停下看到的始终清晰
-  const dpr=Math.min(window.devicePixelRatio||1, 2)*(low?0.42:1); // 上限2: 3x屏再翻倍光栅面积不划算
+  const dpr=Math.min(window.devicePixelRatio||1, 1.6)*(low?0.5:1); // 上限2: 3x屏再翻倍光栅面积不划算
   const ox=Math.round(w*EA_OVER), oy=Math.round(h*EA_OVER);
   const cw=w+ox*2, ch=h+oy*2;
   cv.width=Math.round(cw*dpr); cv.height=Math.round(ch*dpr);
@@ -1072,6 +1075,9 @@ function eaShown(f){ return f.properties.grp==="JPN" || !kyoHidden[f.properties.
 function eaCell(){
   const t=d3.zoomTransform(svg.node());
   const w=$("stage").clientWidth, h=$("stage").clientHeight;
+  // 低倍率下视口本来就覆盖大半张图, 裁剪省不下什么, 却让每次移动都要重烘焙。
+  // 改为整块烘焙并按档长期缓存(eaP2D 的 full 分支) —— 于是"从小岛深缩放退回全图"这类操作命中缓存, 零烘焙。
+  if(t.k < 8) return { key: eaTier+"|full", rect: null, full: true };
   const gx=w/t.k, gy=h/t.k, p0=t.invert([0,0]);
   const cx=Math.floor(p0[0]/gx), cy=Math.floor(p0[1]/gy);
   return { key: eaTier+"|"+Math.round(Math.log2(t.k)*3)+"|"+cx+"|"+cy,
@@ -1091,6 +1097,13 @@ function eaUnitGeom(u){ // 懒解码到当前档
 }
 let eaBakeMore=false, eaFrameT0=0, eaBakeMs=8;
 function eaP2D(f,key){
+  if(key.charCodeAt(key.length-1)===108){ // "...|full": 按档长期缓存, 不受视口移动影响
+    if(!f._pfs) f._pfs={};
+    if(f._pfs[key]!==undefined) return f._pfs[key];
+    if(Object.keys(f._pfs).length && (performance.now()-eaFrameT0)>eaBakeMs){ eaBakeMore=true;
+      return f._pfs[Object.keys(f._pfs)[0]]; }
+    const d=path(f); f._pfs[key]= d ? new Path2D(d) : null; return f._pfs[key];
+  }
   if(f._pk === key) return f._p2d;
   if(eaIdleT && f._pk) return f._p2d;   // 运动进行中不重新烘焙
   // 分帧渐进烘焙, 预算按"时间"而不是"个数": 几何越重单帧能烘的越少, 帧时上限恒定。
@@ -1099,10 +1112,17 @@ function eaP2D(f,key){
   if(f._p2d!==undefined && (performance.now()-eaFrameT0)>eaBakeMs){ eaBakeMore=true; return f._p2d; } // 运动中不重烘焙
   const d = path(f); f._p2d = d ? new Path2D(d) : null; f._pk = key; return f._p2d;
 }
-function eaInvalidate(){ // 换档或换投影后必须清缓存
+// 两种失效要分开: 换档只需丢弃"按视口裁剪"的那份缓存(_pk/_p2d), 整块缓存 _pfs 是按档为键的, 丢了就白丢 ——
+// 曾经在换档时一并清掉, 结果"退回全图"那一帧要重烘焙全部612个单元, 实测单帧 2463ms。
+function eaInvalidateCells(){
   eaDrawNow._dirty=true;
   if(!kyoFeats) return;
   [kyoFeats.units,kyoFeats.water,kyoFeats.rivers,kyoFeats.disp].forEach(a=>a&&a.forEach(f=>{ f._pk=null; f._p2d=undefined; }));
+}
+function eaInvalidate(){ // 换投影(fitExtent/resize)后: 全部缓存作废
+  eaDrawNow._dirty=true;
+  if(!kyoFeats) return;
+  [kyoFeats.units,kyoFeats.water,kyoFeats.rivers,kyoFeats.disp].forEach(a=>a&&a.forEach(f=>{ f._pk=null; f._p2d=undefined; f._pfs=null; }));
   kyoFeats.disp.forEach(f=>{ f._lp=null; }); // 投影可能已变, 标注锚点一并失效
 }
 function eaDrawNow(){
@@ -1118,6 +1138,13 @@ function eaDrawNow(){
   c.setTransform(1,0,0,1,0,0); c.clearRect(0,0,cv.width,cv.height);
   const v=eaViewBox(), vb=v?v.vb:null;
   const hit=g=>!vb||!g||!(g[2]<vb[0]||vb[2]<g[0]||g[3]<vb[1]||vb[3]<g[1]);
+  // 运动中允许"降档": 从小岛深缩放退回全图时, 若仍用最高档渲染整张图, 实测每帧 88ms(用户所说的"返回必卡")。
+  // 降档几何更轻, 立刻省力, 所以运动中就做; 升档昂贵, 仍推迟到停手后的 eaRefine。
+  if(eaIdleT && EA[0]){
+    let want=0; while(want<EA_TIERS.length-1 && t.k>EA_TIERS[want].upTo) want++;
+    while(want>0 && !EA[want]) want--;
+    if(want<eaTier) eaApplyTier();
+  }
   eaFrameT0=performance.now(); eaBakeMs = eaIdleT ? 7 : 12; eaBakeMore=false; // 运动中更保守
   const cell=eaCell(), CK=cell.key, savedClip=projection.clipExtent();
   projection.clipExtent(cell.rect); // 只在烘焙 Path2D 期间生效
