@@ -1,0 +1,883 @@
+<!doctype html><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Claw'd 社区动画对比</title>
+<style>body{margin:0;background:#F0EEE6;font-family:system-ui,'Noto Sans JP';padding:14px}
+h1{font-size:17px;margin:0 0 4px}p{font-size:12.5px;color:#666;margin:0 0 14px;line-height:1.6}
+.g{display:flex;flex-wrap:wrap;gap:12px}
+.c{background:#fff;border:1px solid #ddd;border-radius:10px;padding:8px;text-align:center;width:216px}
+.t{font-size:11.5px;color:#555;margin-bottom:4px;min-height:30px}
+a{color:#2E6E8E;font-size:12.5px}</style>
+<h1>Claw'd 社区动画（笔电相关）</h1>
+<p>这些都是社区做的，形状和官方差 13~44%（见比对表）。你看动作是否是你要的那种。<br>
+<a href="index.html">← 回首页</a></p>
+<div class=g><div class=c><div class=t>clawd-tank / working-typing</div><svg xmlns="http://www.w3.org/2000/svg" viewBox="-15 -25 45 45" width="200" height="200">
+  <defs>
+    <style>
+      /* High-speed body jitter */
+      .p0_body-jitter{
+        transform-origin: 7.5px 15px;
+        animation: jitter 0.08s infinite alternate ease-in-out;
+      }
+
+      /* Furious typing arms (rotating out and tapping) */
+      .p0_arm-l-type{
+        transform-origin: 2px 10px; /* Shoulder joint */
+        animation: type-l 0.15s infinite ease-in-out;
+      }
+      .p0_arm-r-type{
+        transform-origin: 13px 10px; /* Shoulder joint */
+        animation: type-r 0.12s infinite ease-in-out;
+      }
+
+      /* Eye tracking (reading lines of code quickly) */
+      .p0_eyes-read{
+        animation: read-code 1.2s infinite;
+      }
+
+      /* Floating data packets */
+      .p0_data-bit{
+        opacity: 0;
+        animation: float-data 1s infinite linear;
+      }
+      .p0_d1{ animation-delay: 0.0s; transform-origin: -2px 10px; }
+      .p0_d2{ animation-delay: 0.3s; transform-origin: 5px 12px; }
+      .p0_d3{ animation-delay: 0.6s; transform-origin: 12px 11px; }
+      .p0_d4{ animation-delay: 0.8s; transform-origin: 17px 9px; }
+      .p0_d5{ animation-delay: 0.1s; transform-origin: 8px 10px; }
+      .p0_d6{ animation-delay: 0.4s; transform-origin: 0px 11px; }
+      .p0_d7{ animation-delay: 0.7s; transform-origin: 15px 12px; }
+
+      /* Laptop Logo Glow */
+      .p0_logo-glow{
+        animation: logo-pulse 1.5s infinite alternate ease-in-out;
+      }
+
+      /* Keyframes */
+      @keyframes jitter {
+        0% { transform: translateY(0); }
+        100% { transform: translateY(0.5px); }
+      }
+
+      /* Arms point forward and tap rapidly */
+      @keyframes type-l {
+        0% { transform: rotate(70deg); }
+        25% { transform: rotate(110deg); }
+        50% { transform: rotate(80deg); }
+        75% { transform: rotate(100deg); }
+        100% { transform: rotate(70deg); }
+      }
+
+      @keyframes type-r {
+        0% { transform: rotate(-80deg); }
+        25% { transform: rotate(-100deg); }
+        50% { transform: rotate(-70deg); }
+        75% { transform: rotate(-110deg); }
+        100% { transform: rotate(-80deg); }
+      }
+
+      /* Discrete steps to look like reading text */
+      @keyframes read-code {
+        0%, 14% { transform: translate(-2px, 0); }
+        15%, 29% { transform: translate(-1px, 0); }
+        30%, 44% { transform: translate(0px, 0); }
+        45%, 59% { transform: translate(1px, 0); }
+        60%, 84% { transform: translate(2px, 0); }
+        85%, 100% { transform: translate(-2px, 0); } /* Carriage return snap back */
+      }
+
+      /* Packets float up and fade */
+      @keyframes float-data {
+        0% { transform: translateY(0) scale(0.5); opacity: 0; }
+        20% { opacity: 0.8; }
+        100% { transform: translateY(-15px) scale(1.2); opacity: 0; }
+      }
+
+      @keyframes logo-pulse {
+        0% { opacity: 0.4; }
+        100% { opacity: 1; }
+      }
+    </style>
+    
+    <!-- A small square to represent data/code -->
+    <g id="p0_pixel-packet">
+      <rect x="0" y="0" width="1.5" height="1.5" />
+    </g>
+  </defs>
+
+  <!-- Ground Shadow -->
+  <rect id="p0_ground-shadow" x="3" y="15" width="9" height="1" fill="#000000" opacity="0.5"/>
+
+  <!-- Data Particles floating up from behind the laptop -->
+  <g class="p0_data-particles" fill="#40C4FF">
+    <use href="#pixel-packet" class="p0_data-bit p0_d1" x="-2" y="12" />
+    <use href="#pixel-packet" class="p0_data-bit p0_d2" x="5" y="11" />
+    <use href="#pixel-packet" class="p0_data-bit p0_d3" x="12" y="13" />
+    <use href="#pixel-packet" class="p0_data-bit p0_d4" x="17" y="11" />
+    <use href="#pixel-packet" class="p0_data-bit p0_d5" x="8" y="10" />
+    <use href="#pixel-packet" class="p0_data-bit p0_d6" x="1" y="11" />
+    <use href="#pixel-packet" class="p0_data-bit p0_d7" x="15" y="12" />
+  </g>
+
+  <!-- Animated Character Body -->
+  <g class="p0_body-jitter">
+    
+    <!-- Body Base Color Group -->
+    <g id="p0_body-color-group" fill="#DE886D">
+      <!-- Static Legs -->
+      <rect id="p0_outer-left-leg" x="3" y="13" width="1" height="2"/>
+      <rect id="p0_inner-left-leg" x="5" y="13" width="1" height="2"/>
+      <rect id="p0_inner-right-leg" x="9" y="13" width="1" height="2"/>
+      <rect id="p0_outer-right-leg" x="11" y="13" width="1" height="2"/>
+
+      <!-- Main Torso -->
+      <rect id="p0_torso" x="2" y="6" width="11" height="7"/>
+      
+      <!-- Typing Arms -->
+      <g class="p0_arm-l-type">
+        <rect id="p0_left-arm" x="0" y="9" width="2" height="2"/>
+      </g>
+      <g class="p0_arm-r-type">
+        <rect id="p0_right-arm" x="13" y="9" width="2" height="2"/>
+      </g>
+    </g>
+    
+    <!-- Eyes Color Group (Squinting) -->
+    <g fill="#000000">
+      <g class="p0_eyes-read">
+        <rect id="p0_left-eye-squint" x="4" y="8.5" width="1" height="1"/>
+        <rect id="p0_right-eye-squint" x="10" y="8.5" width="1" height="1"/>
+      </g>
+    </g>
+    
+  </g>
+
+  <!-- Pixel Laptop (facing Clawd, so we see the back of the screen) -->
+  <g id="p0_laptop" transform="translate(3, 9.5)">
+    <!-- Laptop Base -->
+    <rect x="-0.5" y="5" width="10" height="1" fill="#546E7A" rx="0.5"/>
+    <!-- Screen Back -->
+    <rect x="0" y="0" width="9" height="5.5" fill="#78909C" rx="0.5"/>
+    <!-- Glowing Logo (Pixel) -->
+    <circle cx="4.5" cy="2.5" r="1.5" fill="#40C4FF" opacity="0.2" class="p0_logo-glow"/>
+    <rect x="4" y="2" width="1" height="1" fill="#FFFFFF" class="p0_logo-glow"/>
+  </g>
+
+</svg>
+</div><div class=c><div class=t>clawd-tank / mini-crab-typing</div><svg xmlns="http://www.w3.org/2000/svg" viewBox="-2 -2 12 12" width="200" height="200">
+  <defs>
+    <style>
+      .p1_mcb{ animation: mc-bounce .35s infinite alternate ease-in-out; }
+      .p1_mc-al{ transform-origin: .3px 4.5px; animation: mc-tl .2s infinite ease-in-out; }
+      .p1_mc-ar{ transform-origin: 6.2px 4.5px; animation: mc-tr .18s infinite ease-in-out; }
+      .p1_mc-data{ opacity: 0; animation: mc-float 1.2s infinite linear; }
+      @keyframes mc-bounce { 0% { transform: translateY(0); } 100% { transform: translateY(-.6px); } }
+      @keyframes mc-tl { 0%,100% { transform: rotate(0); } 50% { transform: rotate(35deg); } }
+      @keyframes mc-tr { 0%,100% { transform: rotate(0); } 50% { transform: rotate(-35deg); } }
+      @keyframes mc-float { 0% { transform: translateY(0) scale(.4); opacity: 0; } 20% { opacity: .7; } 100% { transform: translateY(-5px) scale(.7); opacity: 0; } }
+    </style>
+  </defs>
+
+  <!-- Shadow -->
+  <rect x="1.5" y="8.5" width="4" height=".5" fill="#000" opacity=".25"/>
+
+  <!-- Animated body -->
+  <g class="p1_mcb">
+    <!-- Legs -->
+    <g fill="#DE886D">
+      <rect x="1.5" y="7" width=".8" height="1.5"/>
+      <rect x="2.7" y="7" width=".8" height="1.5"/>
+      <rect x="3.8" y="7" width=".8" height="1.5"/>
+      <rect x="5.0" y="7" width=".8" height="1.5"/>
+    </g>
+
+    <!-- Body -->
+    <rect x="1" y="3.5" width="5.3" height="3.5" fill="#DE886D"/>
+
+    <!-- Arms (typing) -->
+    <g class="p1_mc-al"><rect x="-.5" y="4" width="1.3" height="1.2" fill="#DE886D"/></g>
+    <g class="p1_mc-ar"><rect x="6.5" y="4" width="1.3" height="1.2" fill="#DE886D"/></g>
+
+    <!-- Eyes -->
+    <rect x="2.2" y="4.2" width=".8" height="1" fill="#000"/>
+    <rect x="4.3" y="4.2" width=".8" height="1" fill="#000"/>
+  </g>
+
+  <!-- Floating data particle -->
+  <rect class="p1_mc-data" x="3" y="1.5" width="1.2" height="1.2" fill="#0082FC"/>
+</svg>
+</div><div class=c><div class=t>KebeliSamet0 / clawd-mini-typing</div><svg xmlns="http://www.w3.org/2000/svg" viewBox="-15 -25 45 45" width="200" height="200">
+  <defs>
+    <style>
+      .p2_breathe-anim{
+        transform-origin: 7.5px 13px;
+        animation: breathe 3.2s infinite ease-in-out;
+      }
+
+      .p2_eyes-read{
+        animation: read-code 1.2s infinite;
+      }
+
+      #eyes-js {
+        transition: transform 0.2s ease-out;
+      }
+
+      .p2_arm-l-type{
+        transform-origin: 3px 10px;
+        animation: type-l 0.15s infinite ease-in-out;
+      }
+      .p2_arm-r-type{
+        transform-origin: 12px 10px;
+        animation: type-r 0.12s infinite ease-in-out;
+      }
+
+      /* Floating data packets */
+      .p2_data-bit{
+        opacity: 0;
+        animation: float-data 1s infinite linear;
+      }
+      .p2_d1{ animation-delay: 0.0s; transform-origin: -2px 10px; }
+      .p2_d2{ animation-delay: 0.3s; transform-origin: 5px 12px; }
+      .p2_d3{ animation-delay: 0.6s; transform-origin: 12px 11px; }
+      .p2_d4{ animation-delay: 0.8s; transform-origin: 17px 9px; }
+      .p2_d5{ animation-delay: 0.1s; transform-origin: 8px 10px; }
+      .p2_d6{ animation-delay: 0.4s; transform-origin: 0px 11px; }
+      .p2_d7{ animation-delay: 0.7s; transform-origin: 15px 12px; }
+
+      @keyframes breathe {
+        0%, 100% { transform: scale(1, 1) translate(0, 0); }
+        50% { transform: scale(1.02, 0.98) translate(0, 0.5px); }
+      }
+
+      @keyframes read-code {
+        0%, 14%   { transform: translate(-2px, 0); }
+        15%, 29%  { transform: translate(-1.5px, 0); }
+        30%, 44%  { transform: translate(-1px, 0); }
+        45%, 59%  { transform: translate(-0.5px, 0); }
+        60%, 84%  { transform: translate(0px, 0); }
+        85%, 100% { transform: translate(-2px, 0); }
+      }
+
+      @keyframes type-l {
+        0%   { transform: rotate(-10deg); }
+        25%  { transform: rotate(15deg); }
+        50%  { transform: rotate(-5deg); }
+        75%  { transform: rotate(10deg); }
+        100% { transform: rotate(-10deg); }
+      }
+
+      @keyframes type-r {
+        0%   { transform: rotate(10deg); }
+        25%  { transform: rotate(-15deg); }
+        50%  { transform: rotate(5deg); }
+        75%  { transform: rotate(-10deg); }
+        100% { transform: rotate(10deg); }
+      }
+
+      .p2_logo-glow{
+        animation: logo-pulse 1.5s infinite alternate ease-in-out;
+      }
+
+      @keyframes logo-pulse {
+        0% { opacity: 0.4; }
+        100% { opacity: 1; }
+      }
+
+      /* Packets float up and fade */
+      @keyframes float-data {
+        0% { transform: translateY(0) scale(0.5); opacity: 0; }
+        20% { opacity: 0.8; }
+        100% { transform: translateY(-15px) scale(1.2); opacity: 0; }
+      }
+    </style>
+
+    <!-- A small square to represent data/code -->
+    <g id="p2_pixel-packet">
+      <rect x="0" y="0" width="1.5" height="1.5" />
+    </g>
+  </defs>
+
+  <!-- No shadow (against screen edge, no ground plane) -->
+
+  <!-- Entire character leaning: rotate -12° around feet base (7.5, 15) -->
+  <!-- Negative = counterclockwise = head tilts left toward screen = peeking pose -->
+  <g transform="rotate(-12, 7.5, 15)">
+
+    <!-- Legs (inside rotation group so they tilt with the body) -->
+    <g fill="#DE886D">
+      <rect x="3" y="11" width="1" height="4"/>
+      <rect x="5" y="11" width="1" height="4"/>
+      <rect x="9" y="11" width="1" height="4"/>
+      <rect x="11" y="11" width="1" height="4"/>
+    </g>
+
+    <!-- Upper Body (JS body-shift preserved for compatibility) -->
+    <g id="p2_body-js">
+      <g class="p2_breathe-anim">
+        <!-- Torso -->
+        <rect x="2" y="6" width="11" height="7" fill="#DE886D"/>
+
+        <!-- Left Arm — typing -->
+        <g class="p2_arm-l-type">
+          <rect x="0" y="9" width="3" height="2" fill="#DE886D"/>
+        </g>
+
+        <!-- Right Arm — typing -->
+        <g class="p2_arm-r-type">
+          <rect x="12" y="9" width="3" height="2" fill="#DE886D"/>
+        </g>
+
+        <!-- Eyes: JS translate wrapper + CSS blink -->
+        <g id="p2_eyes-js" fill="#000000">
+          <g class="p2_eyes-read">
+            <rect x="4" y="8" width="1" height="2"/>
+            <rect x="10" y="8" width="1" height="2"/>
+          </g>
+        </g>
+      </g>
+    </g>
+
+    <!-- Pixel Laptop (inside rotation group so it leans with Clawd) -->
+    <g id="p2_laptop" transform="translate(3, 11)">
+      <!-- Laptop Base --> 
+      <rect x="-0.5" y="4" width="8" height="1" fill="#546E7A" rx="0.5"/>
+      <!-- Screen Back -->
+      <rect x="0" y="0" width="7" height="4.5" fill="#78909C" rx="0.5"/>
+      <!-- Glowing Logo -->
+      <circle cx="3.5" cy="2" r="1.2" fill="#40C4FF" opacity="0.2" class="p2_logo-glow"/>
+      <rect x="3" y="1.5" width="1" height="1" fill="#FFFFFF" class="p2_logo-glow"/>
+    </g>
+  </g>
+  <!-- Data Particles floating up from behind the laptop -->
+  <g class="p2_data-particles" fill="#40C4FF">
+    <use href="#pixel-packet" class="p2_data-bit p2_d1" x="-2" y="12" />
+    <use href="#pixel-packet" class="p2_data-bit p2_d2" x="5" y="11" />
+    <use href="#pixel-packet" class="p2_data-bit p2_d3" x="12" y="13" />
+    <use href="#pixel-packet" class="p2_data-bit p2_d4" x="17" y="11" />
+    <use href="#pixel-packet" class="p2_data-bit p2_d5" x="8" y="10" />
+    <use href="#pixel-packet" class="p2_data-bit p2_d6" x="1" y="11" />
+    <use href="#pixel-packet" class="p2_data-bit p2_d7" x="15" y="12" />
+  </g>
+</svg>
+</div><div class=c><div class=t>KebeliSamet0 / clawd-idle-reading</div><svg xmlns="http://www.w3.org/2000/svg" viewBox="-15 -25 45 45" width="200" height="200">
+  <defs>
+    <style>
+      /* ═══ 14s story: arm sway → grab book → read (with thought bits) → book slides away ═══ */
+
+      /* ── Independent ── */
+
+      .p3_breathe{
+        transform-origin: 7.5px 13px;
+        animation: breathe 3.2s infinite ease-in-out;
+      }
+      @keyframes breathe {
+        0%, 100% { transform: scale(1, 1) translate(0, 0); }
+        50% { transform: scale(1.02, 0.98) translate(0, 0.5px); }
+      }
+
+      .p3_blink{
+        transform-origin: 7.5px 9px;
+        animation: blink 5s infinite;
+      }
+      @keyframes blink {
+        0%, 6%, 100% { transform: scaleY(1); }
+        3% { transform: scaleY(0.1); }
+      }
+
+      .p3_shadow{
+        transform-origin: 7.5px 15.5px;
+        animation: shadow-breathe 3.2s infinite ease-in-out;
+      }
+      @keyframes shadow-breathe {
+        0%, 100% { transform: scaleX(1); opacity: 0.5; }
+        50% { transform: scaleX(1.03); opacity: 0.47; }
+      }
+
+      /* ── Main 14s ── */
+
+      /* Body: nod twice during reading */
+      .p3_body-nod{
+        animation: body-nod 14s infinite ease-in-out;
+      }
+      @keyframes body-nod {
+        0%, 36%, 44%, 54%, 62%, 100% { transform: translateY(0); }
+        40% { transform: translateY(0.4px); }
+        58% { transform: translateY(0.4px); }
+      }
+
+      /* Left arm: BIG casual sway → reach → hold → follow book → return */
+      .p3_arm-l{
+        transform-origin: 2px 10px;
+        animation: arm-l-anim 14s infinite ease-in-out;
+      }
+      @keyframes arm-l-anim {
+        /* sway (big, visible fidgeting) */
+        0%        { transform: translate(0, 0) rotate(0deg); }
+        2.5%      { transform: translate(-0.5px, 0) rotate(25deg); }
+        5%        { transform: translate(0.3px, 0) rotate(-20deg); }
+        7.5%      { transform: translate(-0.5px, 0) rotate(22deg); }
+        10%       { transform: translate(0, 0) rotate(0deg); }
+        /* reach out left to grab book */
+        18%       { transform: translate(-1px, -1px) rotate(15deg); }
+        /* bring to chest (hand visible at book left edge) */
+        26%       { transform: translate(2px, 0) rotate(-5deg); }
+        /* hold during reading */
+        76%       { transform: translate(2px, 0) rotate(-5deg); }
+        /* follow book sliding down */
+        84%       { transform: translate(1px, 2px) rotate(0deg); }
+        /* return to normal */
+        92%       { transform: translate(0, 0) rotate(0deg); }
+        100%      { transform: translate(0, 0) rotate(0deg); }
+      }
+
+      /* Right arm: nudge inward during reading */
+      .p3_arm-r{
+        animation: arm-r-anim 14s infinite ease-in-out;
+      }
+      @keyframes arm-r-anim {
+        0%, 22%   { transform: translate(0, 0); }
+        28%, 76%  { transform: translate(-1px, 0); }
+        84%, 100% { transform: translate(0, 0); }
+      }
+
+      /* Book: appear in hand → widen to chest → slide down → gone */
+      .p3_book{
+        opacity: 0;
+        transform-origin: 7px 11.5px;
+        animation: book-anim 14s infinite ease-in-out;
+      }
+      @keyframes book-anim {
+        0%, 12%   { opacity: 0; transform: translate(-5px, -2px) scaleX(0.5); }
+        18%       { opacity: 1; transform: translate(-5px, -2px) scaleX(0.5); }
+        26%       { opacity: 1; transform: translate(0, 0) scaleX(1); }
+        76%       { opacity: 1; transform: translate(0, 0) scaleX(1); }
+        84%       { opacity: 0; transform: translate(0, 4px) scaleX(0.8); }
+        100%      { opacity: 0; transform: translate(0, 4px) scaleX(0.8); }
+      }
+
+      /* Eyes: normal → slow gaze down → drift → normal */
+      .p3_eyes-read{
+        animation: eyes-read 14s infinite ease-in-out;
+      }
+      @keyframes eyes-read {
+        0%, 22%   { transform: translate(0, 0); }
+        30%       { transform: translate(0, 0.5px); }
+        46%       { transform: translate(-0.3px, 0.5px); }
+        60%       { transform: translate(0.3px, 0.5px); }
+        70%       { transform: translate(0, 0.5px); }
+        80%, 100% { transform: translate(0, 0); }
+      }
+
+      /* ── Thought particles (visible only during reading) ── */
+      .p3_reading-fx{
+        animation: reading-fx-vis 14s infinite;
+      }
+      @keyframes reading-fx-vis {
+        0%, 27%   { opacity: 0; }
+        32%, 75%  { opacity: 1; }
+        78%, 100% { opacity: 0; }
+      }
+
+      .p3_thought-bit{
+        opacity: 0;
+        animation: float-thought 2.5s infinite linear;
+      }
+      .p3_t1{ animation-delay: 0s; }
+      .p3_t2{ animation-delay: -0.7s; }
+      .p3_t3{ animation-delay: -1.4s; }
+      .p3_t4{ animation-delay: -2.1s; }
+
+      @keyframes float-thought {
+        0%   { transform: translateY(0); opacity: 0; }
+        10%  { opacity: 0.6; }
+        100% { transform: translateY(-12px); opacity: 0; }
+      }
+    </style>
+  </defs>
+
+  <!-- Ground shadow -->
+  <rect class="p3_shadow" x="3" y="15" width="9" height="1" fill="#000"/>
+
+  <!-- Thought particles (behind body, float up during reading) -->
+  <g class="p3_reading-fx">
+    <rect class="p3_thought-bit p3_t1" x="2"  y="4" width="2" height="2" fill="#40C4FF"/>
+    <rect class="p3_thought-bit p3_t2" x="8"  y="3" width="1.5" height="1.5" fill="#B388FF"/>
+    <rect class="p3_thought-bit p3_t3" x="12" y="5" width="2" height="2" fill="#40C4FF"/>
+    <rect class="p3_thought-bit p3_t4" x="5"  y="3" width="1.5" height="1.5" fill="#69F0AE"/>
+  </g>
+
+  <!-- Nod wrapper -->
+  <g class="p3_body-nod">
+
+    <!-- ── Body layer ── -->
+    <g class="p3_breathe">
+      <!-- Legs (idle style) -->
+      <g fill="#DE886D">
+        <rect x="3" y="11" width="1" height="4"/>
+        <rect x="5" y="11" width="1" height="4"/>
+        <rect x="9" y="11" width="1" height="4"/>
+        <rect x="11" y="11" width="1" height="4"/>
+      </g>
+      <!-- Torso -->
+      <rect x="2" y="6" width="11" height="7" fill="#DE886D"/>
+      <!-- Eyes -->
+      <g class="p3_eyes-read">
+        <g class="p3_blink" fill="#000">
+          <rect x="4" y="8" width="1" height="2"/>
+          <rect x="10" y="8" width="1" height="2"/>
+        </g>
+      </g>
+    </g>
+
+    <!-- ── Book layer (on top of body, chest level) ── -->
+    <g class="p3_breathe">
+      <g class="p3_book">
+        <!-- Back cover (blue) -->
+        <rect x="3" y="10" width="8" height="4" fill="#4A90D9"/>
+        <!-- Spine -->
+        <rect x="7" y="10" width="1" height="4" fill="#2E6AB0"/>
+        <!-- Page edges (top) -->
+        <rect x="4" y="9.5" width="6" height="0.5" fill="#FFFDE7"/>
+        <!-- Page edges (right side) -->
+        <rect x="10.5" y="10.5" width="0.5" height="3" fill="#FFFDE7"/>
+        <!-- Title plate -->
+        <rect x="4.5" y="10.5" width="5" height="1.5" fill="#E3F2FD" opacity="0.5"/>
+        <!-- Title text blocks -->
+        <rect x="5" y="10.8" width="3" height="0.5" fill="#2E6AB0"/>
+        <rect x="5.5" y="11.5" width="2" height="0.3" fill="#2E6AB0" opacity="0.6"/>
+        <!-- Small deco block -->
+        <rect x="6" y="12.5" width="2" height="0.5" fill="#E3F2FD" opacity="0.4"/>
+      </g>
+    </g>
+
+    <!-- ── Arms layer (on top of book) ── -->
+    <g class="p3_breathe">
+      <g fill="#DE886D">
+        <g class="p3_arm-l"><rect x="0" y="9" width="2" height="2"/></g>
+        <g class="p3_arm-r"><rect x="13" y="9" width="2" height="2"/></g>
+      </g>
+    </g>
+
+  </g>
+</svg>
+</div><div class=c><div class=t>clawd-tank / working-debugger</div><svg xmlns="http://www.w3.org/2000/svg" viewBox="-15 -25 45 45" width="200" height="200">
+  <defs>
+    <style>
+      .p4_body-hunch{
+        transform-origin: 7.5px 15px;
+        animation: hunch-walk 2s infinite alternate ease-in-out;
+      }
+      .p4_magnifying-glass{
+        transform-origin: 14px 10px; /* Pivot at the right shoulder */
+        animation: search-glass 3s infinite ease-in-out;
+      }
+      .p4_leg-1{ animation: sneak-1 0.5s infinite linear; transform-origin: top center; transform-box: fill-box; }
+      .p4_leg-2{ animation: sneak-2 0.5s infinite linear; transform-origin: top center; transform-box: fill-box; }
+      .p4_shadow-sneak{
+        transform-origin: 7.5px 15.5px;
+        animation: shadow-shift 2s infinite alternate ease-in-out;
+      }
+      
+      /* Sneaking forward and backward */
+      @keyframes hunch-walk {
+        0% { transform: translate(-2px, 1px) rotate(2deg); }
+        100% { transform: translate(3px, 1px) rotate(2deg); }
+      }
+      @keyframes shadow-shift {
+        0% { transform: translateX(-2px) scale(0.9); opacity: 0.4; }
+        100% { transform: translateX(3px) scale(0.9); opacity: 0.4; }
+      }
+      
+      /* Hovering the magnifying glass over the eye */
+      @keyframes search-glass {
+        0%, 100% { transform: rotate(0deg) scale(1); }
+        50% { transform: rotate(-3deg) scale(1.05); }
+      }
+      
+      /* Fast tiptoe / sneak leg movement */
+      @keyframes sneak-1 {
+        0%, 100% { transform: rotate(0deg) scaleY(1); }
+        50% { transform: rotate(-25deg) scaleY(0.7); }
+      }
+      @keyframes sneak-2 {
+        0%, 100% { transform: rotate(-25deg) scaleY(0.7); }
+        50% { transform: rotate(0deg) scaleY(1); }
+      }
+    </style>
+  </defs>
+
+  <rect id="p4_ground-shadow" class="p4_shadow-sneak" x="3" y="15" width="9" height="1" fill="#000000" opacity="0.5"/>
+  
+  <g class="p4_body-hunch">
+    <g id="p4_legs" fill="#DE886D">
+      <rect id="p4_outer-left-leg" class="p4_leg-1" x="3" y="13" width="1" height="2"/>
+      <rect id="p4_inner-left-leg" class="p4_leg-2" x="5" y="13" width="1" height="2"/>
+      <rect id="p4_inner-right-leg" class="p4_leg-1" x="9" y="13" width="1" height="2"/>
+      <rect id="p4_outer-right-leg" class="p4_leg-2" x="11" y="13" width="1" height="2"/>
+    </g>
+
+    <g id="p4_body-color-group" fill="#DE886D">
+      <rect id="p4_torso" x="2" y="6" width="11" height="7"/>
+      <!-- Left arm tucked back slightly -->
+      <rect id="p4_left-arm" x="0" y="9" width="2" height="2" transform="translate(1, -1) rotate(15 1 10)"/>
+    </g>
+    
+    <!-- Left Eye (squinting) -->
+    <g fill="#000000">
+      <rect id="p4_left-eye" x="4" y="8.5" width="1" height="1"/>
+    </g>
+    
+    <!-- Right Arm & Magnifying Glass -->
+    <g class="p4_magnifying-glass">
+      <rect id="p4_right-arm" x="13" y="9" width="2" height="2" fill="#DE886D"/>
+      
+      <!-- The Magnifying Glass -->
+      <g id="p4_glass" transform="translate(13.5, 9.5)">
+        <!-- Angled Handle from hand to rim -->
+        <polygon points="0.5,1.5 1.5,0.5 -1,-2 -2,-1" fill="#795548"/>
+        
+        <!-- Large circular-ish Rim -->
+        <rect x="-6" y="-5" width="6" height="6" fill="#546E7A" rx="2"/>
+        
+        <!-- Magnified Right Eye (Huge!) - Drawn behind the lens -->
+        <rect x="-4" y="-3.5" width="2" height="3" fill="#000000"/>
+        
+        <!-- Glass Lens (semi-transparent so eye shows through) -->
+        <rect x="-5.5" y="-4.5" width="5" height="5" fill="#E0F7FA" rx="1.5" opacity="0.6"/>
+        
+        <!-- Glare / Reflection on the glass -->
+        <rect x="-4.5" y="-3.5" width="1.5" height="1.5" fill="#FFFFFF" opacity="0.8"/>
+      </g>
+    </g>
+  </g>
+</svg>
+</div><div class=c><div class=t>clawd-tank / working-building</div><svg xmlns="http://www.w3.org/2000/svg" viewBox="-15 -25 45 45" width="200" height="200">
+  <defs>
+    <style>
+      /* Heavy bouncing animation for the body */
+      .p5_body-bounce{
+        transform-origin: 7.5px 15px;
+        animation: hammer-bounce 1s infinite;
+      }
+
+      /* Ground shadow pulsing on impact */
+      .p5_shadow-pulse{
+        transform-origin: 7.5px 15.5px;
+        animation: shadow-impact 1s infinite;
+      }
+
+      /* Left arm resting with slight movement */
+      .p5_arm-l-rest{
+        transform-origin: 2px 10px;
+        animation: arm-rest 1s infinite;
+      }
+
+      /* Right arm swinging the hammer */
+      .p5_arm-hammer{
+        transform-origin: 14px 10px; /* Shoulder joint */
+        animation: hammer-swing 1s infinite;
+      }
+
+      /* Eyes squinting on impact */
+      .p5_eyes-blink{
+        transform-origin: 7.5px 9px;
+        animation: hammer-eyes 1s infinite;
+      }
+
+      /* Spark particles */
+      .p5_spark{
+        opacity: 0;
+      }
+      .p5_s1{ animation: spark-1 1s infinite; }
+      .p5_s2{ animation: spark-2 1s infinite; }
+      .p5_s3{ animation: spark-3 1s infinite; }
+      
+      /* Sweat drop flying off */
+      .p5_sweat{
+        opacity: 0;
+        animation: sweat-fly 1s infinite cubic-bezier(.25,.1,.25,1);
+      }
+      
+      /* Glowing hot metal cooling and heating up */
+      .p5_hot-metal{
+        animation: metal-glow 1s infinite;
+      }
+
+      /* Keyframes */
+      @keyframes hammer-bounce {
+        0%, 100% { transform: scale(1, 1) translateY(0); } /* Base */
+        30% { transform: scale(0.95, 1.05) translateY(-2px); } /* Peak raise (anticipation) */
+        45% { transform: scale(1, 1) translateY(0); } /* Falling */
+        50% { transform: scale(1.15, 0.85) translateY(2px); } /* Hard impact squash */
+        70% { transform: scale(1, 1) translateY(0); } /* Recover */
+      }
+
+      @keyframes shadow-impact {
+        0%, 45%, 70%, 100% { transform: scale(1); opacity: 0.5; }
+        30% { transform: scale(0.8); opacity: 0.3; } /* Lighter when raised */
+        50% { transform: scale(1.3); opacity: 0.8; } /* Heavy and wide on impact */
+      }
+
+      @keyframes arm-rest {
+        0%, 100% { transform: rotate(0deg); }
+        30% { transform: rotate(15deg); }
+        50% { transform: rotate(-5deg); }
+      }
+
+      @keyframes hammer-swing {
+        0%, 100% { transform: rotate(15deg); }
+        30% { transform: rotate(-45deg); } /* Arm raised back */
+        45% { transform: rotate(40deg); } /* Swinging down fast */
+        50% { transform: rotate(125deg); } /* Striking the anvil */
+        70% { transform: rotate(15deg); }
+      }
+
+      @keyframes hammer-eyes {
+        0%, 40% { transform: scaleY(1); } /* Open */
+        48%, 60% { transform: scaleY(0.1); } /* Squeezed shut on impact */
+        65%, 100% { transform: scaleY(1); } /* Open again */
+      }
+      
+      @keyframes metal-glow {
+        0%, 49% { fill: #FF5252; }
+        50%, 60% { fill: #FFF59D; } /* Flashes white/yellow hot on hit */
+        100% { fill: #FF5252; }
+      }
+
+      /* Sweat drop flies back and fades */
+      @keyframes sweat-fly {
+        0% { transform: translate(0, 0) scale(0); opacity: 0; }
+        30% { transform: translate(0, 0) scale(1); opacity: 1; }
+        80% { transform: translate(-6px, -6px) scale(0.8); opacity: 0; }
+        100% { opacity: 0; }
+      }
+
+      /* Sparks flying outwards from the impact zone */
+      @keyframes spark-1 {
+        0%, 49% { transform: translate(0, 0) scale(0); opacity: 0; }
+        50% { transform: translate(0, 0) scale(1); opacity: 1; }
+        70% { transform: translate(4px, -6px) scale(0); opacity: 0; }
+        100% { opacity: 0; }
+      }
+      @keyframes spark-2 {
+        0%, 49% { transform: translate(0, 0) scale(0); opacity: 0; }
+        50% { transform: translate(0, 0) scale(1); opacity: 1; }
+        70% { transform: translate(7px, -1px) scale(0); opacity: 0; }
+        100% { opacity: 0; }
+      }
+      @keyframes spark-3 {
+        0%, 49% { transform: translate(0, 0) scale(0); opacity: 0; }
+        50% { transform: translate(0, 0) scale(1); opacity: 1; }
+        70% { transform: translate(3px, 3px) scale(0); opacity: 0; }
+        100% { opacity: 0; }
+      }
+    </style>
+
+    <!-- Pixel Spark -->
+    <g id="p5_pixel-spark">
+      <rect x="0" y="0" width="1" height="1" />
+    </g>
+  </defs>
+
+  <!-- Ground Shadows -->
+  <rect id="p5_ground-shadow" class="p5_shadow-pulse" x="3" y="15" width="9" height="1" fill="#000000"/>
+  <rect id="p5_work-shadow" x="16" y="15" width="7" height="1" fill="#000000" opacity="0.4"/>
+
+  <!-- Metal Block / Anvil being hit -->
+  <g id="p5_work-piece" transform="translate(17, 13)">
+    <!-- Base -->
+    <rect x="0" y="2" width="5" height="1" fill="#546E7A" />
+    <!-- Main block -->
+    <rect x="1" y="0" width="3" height="2" fill="#78909C" />
+    <!-- Glowing hot piece on top -->
+    <rect x="1.5" y="-0.5" width="2" height="1" class="p5_hot-metal" />
+  </g>
+
+  <!-- Impact Sparks (Positioned near the hammer's strike point) -->
+  <g fill="#FFC107" transform="translate(19, 12.5)">
+    <use href="#pixel-spark" class="p5_spark p5_s1" />
+    <use href="#pixel-spark" class="p5_spark p5_s2" />
+    <use href="#pixel-spark" class="p5_spark p5_s3" />
+  </g>
+
+  <!-- Animated Character Body -->
+  <g class="p5_body-bounce">
+    
+    <!-- Sweat Drop (Positioned near the side of the head) -->
+    <g transform="translate(1, 8)">
+      <g class="p5_sweat" fill="#40C4FF">
+        <rect x="0" y="1" width="1.5" height="1.5"/>
+        <rect x="0.25" y="0" width="1" height="1"/>
+      </g>
+    </g>
+
+    <!-- Hard Hat -->
+    <g id="p5_hard-hat">
+      <!-- Ridges top (y=1) -->
+      <rect x="4" y="1" width="2" height="1" fill="#FBC02D"/>
+      <rect x="9" y="1" width="2" height="1" fill="#FBC02D"/>
+
+      <!-- Upper Dome (y=2) -->
+      <rect x="3" y="2" width="1" height="1" fill="#F9A825"/>
+      <rect x="4" y="2" width="2" height="1" fill="#FBC02D"/>
+      <rect x="6" y="2" width="1" height="1" fill="#F9A825"/>
+      <rect x="7" y="2" width="1" height="1" fill="#FBC02D"/>
+      <rect x="8" y="2" width="1" height="1" fill="#F9A825"/>
+      <rect x="9" y="2" width="2" height="1" fill="#FBC02D"/>
+      <rect x="11" y="2" width="1" height="1" fill="#F9A825"/>
+      
+      <!-- Mid Dome (y=3) -->
+      <rect x="2" y="3" width="1" height="1" fill="#F9A825"/>
+      <rect x="3" y="3" width="3" height="1" fill="#FBC02D"/>
+      <rect x="6" y="3" width="1" height="1" fill="#F9A825"/>
+      <rect x="7" y="3" width="1" height="1" fill="#FBC02D"/>
+      <rect x="8" y="3" width="1" height="1" fill="#F9A825"/>
+      <rect x="9" y="3" width="3" height="1" fill="#FBC02D"/>
+      <rect x="12" y="3" width="1" height="1" fill="#F9A825"/>
+
+      <!-- Lower Dome / Brim top (y=4) -->
+      <rect x="1" y="4" width="2" height="1" fill="#F9A825"/>
+      <rect x="3" y="4" width="9" height="1" fill="#FBC02D"/>
+      <rect x="12" y="4" width="2" height="1" fill="#F9A825"/>
+
+      <!-- Bottom Band (y=5) -->
+      <rect x="0" y="5" width="15" height="1" fill="#F9A825"/>
+    </g>
+
+    <!-- Body Base Color Group -->
+    <g id="p5_body-color-group" fill="#DE886D">
+      <!-- Static Legs -->
+      <rect id="p5_outer-left-leg" x="3" y="13" width="1" height="2"/>
+      <rect id="p5_inner-left-leg" x="5" y="13" width="1" height="2"/>
+      <rect id="p5_inner-right-leg" x="9" y="13" width="1" height="2"/>
+      <rect id="p5_outer-right-leg" x="11" y="13" width="1" height="2"/>
+
+      <!-- Main Torso -->
+      <rect id="p5_torso" x="2" y="6" width="11" height="7"/>
+      
+      <!-- Resting Left Arm -->
+      <g class="p5_arm-l-rest">
+        <rect id="p5_left-arm" x="0" y="9" width="2" height="2"/>
+      </g>
+
+      <!-- Hammer-Swinging Right Arm -->
+      <g class="p5_arm-hammer">
+        <rect id="p5_right-arm" x="13" y="9" width="2" height="2"/>
+        
+        <!-- Tiny Pixel Hammer -->
+        <g id="p5_hammer">
+          <!-- Handle -->
+          <rect x="13.5" y="4" width="1" height="6" fill="#795548" />
+          <!-- Head -->
+          <rect x="12.5" y="3" width="3" height="2" fill="#9E9E9E" />
+        </g>
+      </g>
+    </g>
+    
+    <!-- Eyes Color Group (Determined / Straining) -->
+    <g class="p5_eyes-blink" fill="#000000">
+      <rect id="p5_left-eye" x="4" y="8.5" width="1.5" height="1.5"/>
+      <rect id="p5_right-eye" x="9.5" y="8.5" width="1.5" height="1.5"/>
+    </g>
+    
+  </g>
+</svg>
+</div></div>
