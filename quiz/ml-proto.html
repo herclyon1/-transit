@@ -8,7 +8,7 @@
   GitHub Pages 原生支持)。渲染全程在 GPU, 平移缩放只是矩阵变换; 分档由瓦片的缩放级别天然承担。
   现版手写的 LOD/烘焙/裁剪/缓存 在这个方案里全部不存在。
 -->
-<link href="https://unpkg.com/maplibre-gl@5.6.0/dist/maplibre-gl.css" rel="stylesheet">
+<link href="vendor/maplibre-gl.css" rel="stylesheet">
 <style>
   html,body{margin:0;height:100%;overflow:hidden;font-family:system-ui,-apple-system,'Noto Sans JP',sans-serif;}
   #map{position:absolute;inset:0;}
@@ -25,25 +25,34 @@
 <div id="hud"><b>MapLibre 原型</b><br>帧时 <span id="fps">—</span><br><span id="info">加载中…</span></div>
 <div id="card"></div>
 <a id="back" href="japan-map-quiz.html">← 现行版对比</a>
-<script src="https://unpkg.com/maplibre-gl@5.6.0/dist/maplibre-gl.js"></script>
-<script src="https://unpkg.com/pmtiles@4.4.1/dist/pmtiles.js"></script>
+<script src="vendor/maplibre-gl.js"></script>
+<script src="vendor/pmtiles.js"></script>
 <script>
 const COLORS = ["CHN", "#e2806e", "KOR", "#9db8e0", "PRK", "#7d8fbd", "VNM", "#c96058", "LAO", "#b3b8e0", "THA", "#7d99cc", "KHM", "#e3c495", "MMR", "#a8cf9f", "MYS", "#e8d48a", "SGP", "#e6a0a0", "BRN", "#cba96e", "IDN", "#e29184", "TLS", "#e5cf8f", "PNG", "#d4a86a", "PHL", "#94aede", "IND", "#eeb27f", "LKA", "#c78d64", "NPL", "#b95f6e", "BTN", "#f0d75f", "BGD", "#97c9a2", "PLW", "#a5cde3", "FSM", "#86a9d4", "MHL", "#b5d3ea", "MNP", "#93b0d9", "TWN", "#86c3a8", "RUS", "#b8c4dd", "MNG", "#b7d3a1", "MDV", "#8fb8d8"];
 const p = new pmtiles.Protocol();
 maplibregl.addProtocol("pmtiles", p.tile);
 const map = new maplibregl.Map({
   container:"map", attributionControl:false, maxZoom:16, dragRotate:false, pitchWithRotate:false, touchZoomRotate:true,
-  style:{ version:8, sources:{ ea:{ type:"vector", url:"pmtiles://ea.pmtiles" } },
+  style:{ version:8, sources:{
+      ea:  { type:"vector", url:"pmtiles://ea_units.pmtiles"  },
+      lak: { type:"vector", url:"pmtiles://ea_lakes.pmtiles"  },
+      riv: { type:"vector", url:"pmtiles://ea_rivers.pmtiles" } },
     layers:[
       {id:"bg", type:"background", paint:{"background-color":"#dcebf5"}},
       {id:"fill", source:"ea", "source-layer":"units", type:"fill",
         paint:{"fill-color":["match",["get","grp"], ...COLORS, "#cccccc"]}},
       {id:"border", source:"ea", "source-layer":"units", type:"line",
         paint:{"line-color":"#5f5348","line-width":["interpolate",["linear"],["zoom"],2,0.4,10,0.9]}},
-      {id:"water", source:"ea", "source-layer":"water", type:"fill",
+      // minzoom 必须写在样式层上。tippecanoe 的 -L JSON 不认 minzoom 字段，
+      // 写了等于没写——河流因此从 z0 就全画出来，整张图像血管图。
+      {id:"water", source:"lak", "source-layer":"water", type:"fill", minzoom:3,
         paint:{"fill-color":"#bcd8ec","fill-outline-color":"#9dc2dd"}},
-      {id:"rivers", source:"ea", "source-layer":"rivers", type:"line",
-        paint:{"line-color":"#9dc2dd","line-width":["interpolate",["linear"],["zoom"],3,0.5,10,1.4]}}
+      {id:"rivers", source:"riv", "source-layer":"rivers", type:"line", minzoom:5,
+        paint:{"line-color":"#9dc2dd","line-opacity":["interpolate",["linear"],["zoom"],5,0.35,8,0.9],
+               "line-width":["interpolate",["linear"],["zoom"],5,0.4,10,1.4]}},
+      // 争议/分歧范围: 虚线框 + 标注，填色仍按实际管理
+      {id:"disp", source:"ea", "source-layer":"disp", type:"line",
+        paint:{"line-color":"#8a3f3f","line-width":1.2,"line-dasharray":[3,2]}}
     ]},
   center:[112,22], zoom:2.2
 });
