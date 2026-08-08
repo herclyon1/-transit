@@ -28,25 +28,6 @@ a.card .wip{color:var(--muted)}
 footer{margin-top:34px;font-size:11.5px;color:var(--muted);max-width:680px;line-height:1.7}
 @media (max-width:480px){header h1{font-size:22px} a.card h2{font-size:17px}}
 
-/* ---------- Claw'd（官方原件） ---------- */
-/* 几何取自 Anthropic 官方吉祥物的 SVG：身体 85x65、两侧 22x23 的爪、
-   11x11 的黑眼睛、四条 11x26 的腿，色值 #DD775B。一个数值都没改。
-   走路动画按官方参数：腿 rotation -7~-9 度、scaleY 1.15~1.35。
-   我先前自制的四版与社区二次创作版均已删除。 */
-.clawd{width:100%;max-width:680px;margin:0 0 24px;background:#FBFAF7;border:1px solid var(--line);
-  border-radius:10px;padding:16px;display:flex;align-items:center;gap:18px;overflow:hidden;flex-wrap:wrap}
-.clawd svg{display:block;flex:0 0 auto;overflow:visible}
-.clawd .say{font-size:12.5px;color:var(--muted);line-height:1.6;flex:1 1 200px;min-width:0}
-.clawd .say b{color:var(--soft);font-weight:800}
-
-#cw-body{animation:cw-bob 2.2s ease-in-out infinite}
-@keyframes cw-bob{0%,100%{transform:translateY(0)}50%{transform:translateY(-2px)}}
-#leg1,#leg2,#leg3,#leg4{transform-box:fill-box;transform-origin:top center}
-@keyframes cw-lA{0%,100%{transform:rotate(-8deg) scaleY(1.3)}50%{transform:rotate(9deg) scaleY(1.15)}}
-@keyframes cw-lB{0%,100%{transform:rotate(9deg) scaleY(1.15)}50%{transform:rotate(-8deg) scaleY(1.35)}}
-@media (prefers-reduced-motion:reduce){#cw-body,#leg1,#leg2,#leg3,#leg4{animation:none!important}}
-@media (max-width:480px){.clawd{gap:12px;padding:12px}.clawd .say{font-size:11.5px}}
-
 </style>
 </head>
 <body>
@@ -55,28 +36,6 @@ footer{margin-top:34px;font-size:11.5px;color:var(--muted);max-width:680px;line-
   <h1>地図ツール</h1>
   <div class="note">按「打开它是为了做什么」分成两个入口，而不是按地图种类分。底层共用同一套渲染引擎与瓦片数据。</div>
 </header>
-
-<!-- CLAWD:START -->
-<div class="clawd">
-  <svg viewBox="0 0 107 77" width="116" height="84" xmlns="http://www.w3.org/2000/svg" fill="none" aria-label="Claw'd">
-    <defs><clipPath id="ground-clip"><rect x="-20" y="-50" width="160" height="136"/></clipPath></defs>
-    <g id="cw-body">
-      <g clip-path="url(#ground-clip)">
-        <rect id="leg4" x="85" y="60" width="11" height="12" fill="#DD775B"/>
-        <rect id="leg3" x="64" y="60" width="11" height="12" fill="#DD775B"/>
-        <rect id="leg2" x="32" y="60" width="11" height="12" fill="#DD775B"/>
-        <rect id="leg1" x="11" y="60" width="11" height="12" fill="#DD775B"/>
-      </g>
-      <rect id="bdy" x="11" y="0" width="85" height="65" fill="#DD775B"/>
-      <rect id="right-hand" x="85" y="21" width="22" height="23" fill="#DD775B"/>
-      <rect id="left-hand"  x="0"  y="21" width="22" height="23" fill="#DD775B"/>
-      <rect id="left-eyes"  x="75" y="11" width="11" height="11" fill="#000"/>
-      <rect id="right-eyes" x="21" y="11" width="11" height="11" fill="#000"/>
-    </g>
-  </svg>
-  <div class="say"><b>Claw'd</b> 正在重写这些地图。<br>数据换成 OSM 原始数据，渲染换成 MapLibre。</div>
-</div>
-<!-- CLAWD:END -->
 
 <div class="cards">
   <a class="card quiz" href="quiz/map.html">
