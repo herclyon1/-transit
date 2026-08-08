@@ -57,6 +57,7 @@ const map = new maplibregl.Map({
   center:[112,22], zoom:2.2
 });
 map.touchZoomRotate.disableRotation();
+window.__map = map;
 map.on("load",()=>{ document.getElementById("info").innerHTML="矢量瓦片 · GPU 渲染<br>按需取块，无需预先加载全部数据"; });
 map.on("click","fill",e=>{ const f=e.features&&e.features[0]; if(!f)return;
   const c=document.getElementById("card");
