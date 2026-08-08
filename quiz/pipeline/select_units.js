@@ -71,6 +71,13 @@ for (const l of fs.readFileSync(D + "/adm_simp.geojsonl", "utf8").split("\n")) {
 }
 console.log("OSM 候选:", cands.length, " 国界多边形:", countries.length, " 旧单元:", oldF.length);
 
+// 补国界：有些属地在 OSM 里没有自己的 AL2 国界，只挂在宗主国下面。
+// 北马里亚纳的 4 个自治市就因此全部归属失败——它们的代表点落在
+// "United States of America (CNMI)" 里，而美国不在覆盖范围内，于是被整体丢掉。
+for (const c of cands) {
+  if (c.al === "4" && c.name === "Northern Mariana Islands") countries.push({ iso: "MNP", g: c.g, bb: c.bb });
+}
+
 // 断言：id 必须存在且唯一。
 // 上一版这里是坏的——ogr2ogr 把 `fid AS src_fid` 这个列丢掉了，导致每个候选的 id
 // 都是 undefined，于是全部单元共用同一条名字记录，而报表还显示「0 个未继承中文名」。
@@ -119,6 +126,38 @@ for (const c of cands) {
   }
   if (drop.size) console.log("同地重复单元已去重:", drop.size);
   for (let i = sel.length - 1; i >= 0; i--) if (drop.has(sel[i].fid)) sel.splice(i, 1);
+}
+
+// ---- 补缺：OSM 少了某个单元时，用下一级并起来重建 ----
+// 印尼北苏门答腊省在 OSM 里根本没有 AL4 关系（整个印尼 AL4 只有西/南苏门答腊），
+// 是 OSM 自身的缺口。规则：找出没有任何选中单元覆盖的旧单元，
+// 收集落在它范围内的下一级候选，合成一个单元。
+// 旧多边形只用来判归属，几何仍然全部来自 OSM。
+const rebuilds = [];
+{
+  const covered = new Set();
+  for (const u of oldF) {
+    for (const c of sel) {
+      if (c.grp !== u.properties.grp) continue;
+      if (u.rp[0] < c.bb[0] || u.rp[0] > c.bb[2] || u.rp[1] < c.bb[1] || u.rp[1] > c.bb[3]) continue;
+      if (contains(c.g, u.rp)) { covered.add(u); break; }
+    }
+  }
+  const selByGrp = {};
+  sel.forEach(c => (selByGrp[c.grp] = selByGrp[c.grp] || []).push(c));
+  for (const u of oldF) {
+    const g = u.properties.grp;
+    if (covered.has(u)) continue;
+    if ((selByGrp[g] || []).length >= WANT[g]) continue;      // 数量已够，不是缺失
+    const lv = String(Number((LEVEL[g] || LEVEL._d)[0]) + 1);
+    const parts = cands.filter(c => c.grp === g && c.al === lv && contains(u.geometry, c.rp));
+    if (!parts.length) continue;
+    rebuilds.push({ grp: g, n: u.properties.n, fids: parts.map(c => c.fid) });
+    console.log("重建单元:", g, u.properties.n, "← AL" + lv + " 子单元 " + parts.length + " 个");
+    sel.push({ fid: "R" + rebuilds.length, grp: g, al: lv, name: u.properties.n, zh: "",
+      isoTag: null, g: parts[0].g, bb: parts[0].bb, a: parts.reduce((s, c) => s + c.a, 0),
+      rp: parts[0].rp, rebuiltFrom: parts.map(c => c.fid) });
+  }
 }
 
 // ---- 中文名 ----
@@ -181,5 +220,5 @@ console.log("\n不达标:", bad, "/", Object.keys(WANT).length, "  总单元:", 
 }
 
 fs.writeFileSync(D + "/picked.json", JSON.stringify(
-  sel.map(c => ({ fid: c.fid, grp: c.grp, n: c.n, osm: c.name, zh: c.zh, inherited: !!c.inherited }))));
+  sel.map(c => ({ fid: c.fid, grp: c.grp, n: c.n, osm: c.name, zh: c.zh, inherited: !!c.inherited, rebuiltFrom: c.rebuiltFrom || null }))));
 console.log("已写出 picked.json");
