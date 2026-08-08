@@ -3,14 +3,15 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>日本地理工具集</title>
+<title>地図ツール</title>
 <style>
 :root{--ink:#1B2433;--soft:#33415C;--paper:#E9EDF0;--panel:#FFF;--line:#C9D2DB;--accent:#B3541E;--hover:#2E6E8E;--muted:#6B7688;}
 *{margin:0;padding:0;box-sizing:border-box}
 body{font-family:'Noto Sans JP','Hiragino Sans','Microsoft YaHei',system-ui,sans-serif;background:var(--paper);color:var(--ink);min-height:100vh;display:flex;flex-direction:column;align-items:center;padding:32px 16px}
-header{width:100%;max-width:680px;margin-bottom:28px}
+header{width:100%;max-width:680px;margin-bottom:26px}
 header .kicker{font-size:12px;font-weight:700;letter-spacing:.22em;color:var(--muted);margin-bottom:6px}
 header h1{font-size:28px;font-weight:900}
+header .note{font-size:12.5px;color:var(--muted);margin-top:8px;line-height:1.6}
 .cards{width:100%;max-width:680px;display:flex;flex-direction:column;gap:14px}
 a.card{display:block;background:var(--panel);border:1px solid var(--line);border-left:5px solid var(--ink);box-shadow:0 2px 10px rgba(20,30,50,.10);padding:18px 20px;text-decoration:none;color:inherit;transition:transform .12s, box-shadow .12s}
 a.card:hover{transform:translateY(-2px);box-shadow:0 6px 18px rgba(20,30,50,.16);border-left-color:var(--hover)}
@@ -18,53 +19,58 @@ a.card h2{font-size:19px;font-weight:900;margin-bottom:5px}
 a.card p{font-size:13.5px;color:var(--soft);line-height:1.6}
 a.card .tag{display:inline-block;font-size:11px;font-weight:700;letter-spacing:.14em;color:#fff;background:var(--ink);padding:2px 9px;border-radius:2px;margin-bottom:8px}
 a.card.quiz{border-left-color:var(--accent)}
-footer{margin-top:36px;font-size:11.5px;color:var(--muted)}
+a.card ul{margin:8px 0 0 16px;font-size:12.5px;color:var(--soft);line-height:1.75}
+a.card .wip{color:var(--muted)}
+.scaffold{width:100%;max-width:680px;margin-top:30px;padding-top:14px;border-top:1px dashed var(--line)}
+.scaffold .h{font-size:11px;font-weight:700;letter-spacing:.18em;color:var(--muted);margin-bottom:8px}
+.scaffold a{font-size:12.5px;color:var(--muted);text-decoration:none;margin-right:14px;line-height:2}
+.scaffold a:hover{color:var(--hover);text-decoration:underline}
+footer{margin-top:34px;font-size:11.5px;color:var(--muted);max-width:680px;line-height:1.7}
 @media (max-width:480px){header h1{font-size:22px} a.card h2{font-size:17px}}
 </style>
 </head>
 <body>
 <header>
-  <div class="kicker">JAPAN GEO TOOLS</div>
-  <h1>日本地理工具集</h1>
+  <div class="kicker">MAP TOOLS</div>
+  <h1>地図ツール</h1>
+  <div class="note">按「打开它是为了做什么」分成两个入口，而不是按地图种类分。底层共用同一套渲染引擎与瓦片数据。</div>
 </header>
+
 <div class="cards">
   <a class="card quiz" href="quiz/japan-map-quiz.html">
-    <span class="tag">QUIZ</span>
-    <h2>日本都道府県クイズ</h2>
-    <p>47 县地理测验（浏览 / 闯关 / 混考）+ 大日本历史版图与東亜现行行政区划。東亜层为 geoBoundaries CGAZ 边匹配数据（26 国 612 个一级/实际一级单元），含湖泊河流、争议地区范围标注，画布渲染，手机流畅。</p>
+    <span class="tag">学習</span>
+    <h2>地図 · 学習</h2>
+    <p>了解日本与东亚的地理和行政结构。</p>
+    <ul>
+      <li>現代日本：浏览 · 答题 · 闯关</li>
+      <li>行政区下钻：都道府県 → 市町村 → 町丁目</li>
+      <li>東亜：浏览（OSM 原始数据，621 单元／27 国）</li>
+      <li class="wip">大日本（1942）：需历史 GIS 数据，暂缓</li>
+    </ul>
   </a>
-  <a class="card" href="admin/japan_admin_map_v2.html">
-    <span class="tag">MAP</span>
-    <h2>日本行政区分図</h2>
-    <p>全国 → 都道府県 → 市区町村 → 町丁目，逐级钻取。数据按县懒加载（点开哪个县才下载哪个县，手机也流畅）。</p>
-  </a>
-  <a class="card" href="transit.html">
-    <span class="tag">TRANSIT</span>
-    <h2>大阪府 车站可达性图</h2>
-    <p>大阪府各车站交通可达性可视化：线路、可达范围、步行圈，含图钉查询与主题跟随。</p>
-  </a>
+
   <a class="card" href="osaka-residence-tiers.html">
-    <span class="tag">OSAKA</span>
-    <h2>大阪府居住等级图</h2>
-    <p>大阪府居住区域等级可视化：按治安与环境给各区域分级配色。</p>
+    <span class="tag">居住</span>
+    <h2>大阪 · 居住</h2>
+    <p>决定住在哪里时看的东西，可叠加显示。</p>
+    <ul>
+      <li class="wip">居住等级：评级方法待重做，现为粗略版</li>
+      <li class="wip">车站可达性：待并入</li>
+    </ul>
   </a>
 </div>
-<div class="cards" style="margin-top:18px">
-  <div style="font-size:12px;font-weight:700;letter-spacing:.18em;color:#6B7688;margin-bottom:6px">渲染架构原型（对比用，非正式功能）</div>
-  <a class="card" href="quiz/ml-proto.html" style="border-left-color:#2E6E8E">
-    <span class="tag" style="background:#2E6E8E">PROTO A · 新数据</span>
-    <h2>東亜地図 · MapLibre + 矢量瓦片</h2>
-    <p>已换成 OSM 原始数据：623 个行政单元，最高层级边界中位段长 34m（旧版 472m）。
-       中朝国界与鸭绿江是同一批几何，不存在对不齐。放大到丹东一带可以直接看。
-       左上角是实时帧时，可与现行版对比。</p>
-  </a>
-  <a class="card" href="quiz/gl-proto.html" style="border-left-color:#B3541E">
-    <span class="tag" style="background:#B3541E">PROTO E</span>
-    <h2>東亜地図 · 自建 WebGL</h2>
-    <p>全部顶点一次性投影后常驻 GPU，每帧只改矩阵。缩放全程零计算，但首次建图需要十几秒（生产版需预先烘焙）。</p>
-  </a>
+
+<div class="scaffold">
+  <div class="h">迁移中的旧页面</div>
+  <a href="admin/japan_admin_map_v2.html">日本行政区分図</a>
+  <a href="transit.html">大阪府 车站可达性図</a>
+  <a href="quiz/ml-proto.html">東亜 · MapLibre 原型</a>
+  <a href="quiz/gl-proto.html">東亜 · WebGL 原型</a>
 </div>
-<footer>数据：国土数値情報 N03 / 令和2年国勢調査 (e-Stat) / Natural Earth（公有领域）/ OpenStreetMap（ODbL）/
-geoBoundaries CGAZ（CC BY 4.0, geoboundaries.org）/ 菲律宾统计局 PSGC 2023</footer>
+
+<footer>
+数据：OpenStreetMap（ODbL）· 国土数値情報 · 令和2年国勢調査 (e-Stat) ·
+歴史的行政区域データセットβ版（CODH）· OSM 陸地ポリゴン（osmdata.openstreetmap.de）
+</footer>
 </body>
 </html>
