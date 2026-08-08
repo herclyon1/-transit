@@ -22,16 +22,32 @@ const out = fs.createWriteStream(D + "/units_osm.geojsonl");
 const stats = [];
 let n = 0, miss = 0;
 
+// ST_Union(ST_Intersection(...)) 在多边形与陆地块相切处会吐出 GeometryCollection
+// （面 + 线/点混在一起）。只保留面的部分，否则这些单元的面积会算成 0——
+// 广东省和平安北道就是这么变成 0 的。
+function polysOnly(g) {
+  if (!g) return null;
+  if (g.type === "Polygon" || g.type === "MultiPolygon") return g;
+  if (g.type !== "GeometryCollection") return null;
+  const parts = [];
+  for (const sub of g.geometries) {
+    if (sub.type === "Polygon") parts.push(sub.coordinates);
+    else if (sub.type === "MultiPolygon") parts.push(...sub.coordinates);
+  }
+  return parts.length ? { type: "MultiPolygon", coordinates: parts } : null;
+}
+
 const rl = readline.createInterface({ input: fs.createReadStream(D + "/units_clipped.geojsonl"), crlfDelay: Infinity });
 rl.on("line", line => {
   const s = line.replace(/^\x1e/, "").trim(); if (!s) return;
   let f; try { f = JSON.parse(s); } catch (e) { return; }
   const meta = byFid.get(String(f.properties.uid));
   if (!meta) return;                       // 重建子件，另行处理
-  if (!f.geometry) { miss++; return; }
-  const a = Math.abs(area(f.geometry));
+  const g = polysOnly(f.geometry);
+  if (!g) { miss++; return; }
+  const a = Math.abs(area(g));
   stats.push({ grp: meta.grp, n: meta.n, a });
-  out.write(JSON.stringify({ type: "Feature", properties: { grp: meta.grp, n: meta.n }, geometry: f.geometry }) + "\n");
+  out.write(JSON.stringify({ type: "Feature", properties: { grp: meta.grp, n: meta.n }, geometry: g }) + "\n");
   n++;
 });
 
@@ -40,8 +56,9 @@ rl.on("close", () => {
   for (const rb of rebuilt) {
     const t = fs.readFileSync(D + "/rebuild_union.geojsonl", "utf8").replace(/^\x1e/, "").trim();
     const f = JSON.parse(t.split("\n")[0].replace(/^\x1e/, ""));
-    stats.push({ grp: rb.grp, n: rb.n, a: Math.abs(area(f.geometry)) });
-    out.write(JSON.stringify({ type: "Feature", properties: { grp: rb.grp, n: rb.n }, geometry: f.geometry }) + "\n");
+    const rg = polysOnly(f.geometry);
+    stats.push({ grp: rb.grp, n: rb.n, a: Math.abs(area(rg)) });
+    out.write(JSON.stringify({ type: "Feature", properties: { grp: rb.grp, n: rb.n }, geometry: rg }) + "\n");
     n++;
   }
   // 马绍尔：OSM 没有市镇界，这 22 个沿用旧几何（已知缺口，不是遗漏）
