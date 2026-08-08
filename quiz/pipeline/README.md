@@ -68,6 +68,23 @@ OSM 的行政区边界走的是**领海线，不是海岸线**（国界关系 28
 > `interval` 是面积阈值不是段长阈值，当年就是误解了这一点把国界削到 1469m。
 > 切完必须逐级验证边界与河流/海岸线的对齐，不能切完就当完事。
 
+## GDAL / ogr2ogr 的两个静默陷阱
+
+这两条今天各踩了三次和一次，都表现为「命令成功、结果是错的」，务必照做：
+
+1. **导出时凡是要保留 `fid`，必须写 `CAST(fid AS INTEGER) AS uid`。**
+   只写 `fid AS uid` 的话 GDAL 会把它当成要素 ID 吞掉，输出里根本没有这个字段。
+   后果极隐蔽：所有记录的 id 都变成 `undefined`，于是共用同一条属性，
+   而统计报表看起来完全正常。
+
+2. **`-overwrite` 对已存在的 GeoJSON/GeoJSONSeq 文件不生效。**
+   导出会"成功"，但磁盘上还是旧内容。改文件前先 `rm -f`。
+
+3. **`-lco SPATIAL_INDEX=YES` 建 GPKG 空间索引可能静默失败**
+   （只在 stderr 留一句 `failed to prepare SQL: INSERT INTO my_rtree`，退出码是 0）。
+   建完必须 `SELECT COUNT(*) FROM rtree_<表>_<几何列>` 验证不是 0，
+   否则后续空间连接会退化成全交叉。修法见 `clip.sh`：导出 bbox 到 CSV 后手工重建 rtree。
+
 ## 验收红线
 
 1. **单元数必须对得上 612**，少一个都要查到原因（平安北道就是这么抓出来的）
