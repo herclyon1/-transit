@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html lang="zh"><head><meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<title>東亜地図 MapLibre 原型</title>
+<!--
+  A 方案原型: MapLibre GL JS + 矢量瓦片(PMTiles)。
+  数据管线: units_final11.geojson -> tippecanoe -> ea.pmtiles(31MB, 靠 HTTP Range 按需取块,
+  GitHub Pages 原生支持)。渲染全程在 GPU, 平移缩放只是矩阵变换; 分档由瓦片的缩放级别天然承担。
+  现版手写的 LOD/烘焙/裁剪/缓存 在这个方案里全部不存在。
+-->
+<link href="https://unpkg.com/maplibre-gl@5.6.0/dist/maplibre-gl.css" rel="stylesheet">
+<style>
+  html,body{margin:0;height:100%;overflow:hidden;font-family:system-ui,-apple-system,'Noto Sans JP',sans-serif;}
+  #map{position:absolute;inset:0;}
+  #hud{position:absolute;left:8px;top:8px;background:rgba(255,255,255,.92);border-radius:8px;padding:8px 11px;
+       font-size:12px;line-height:1.6;color:#1B2433;box-shadow:0 2px 8px rgba(0,0,0,.15);z-index:5;}
+  #hud b{font-size:14px} #fps{font-variant-numeric:tabular-nums;font-weight:700}
+  #back{position:absolute;right:10px;bottom:12px;z-index:5;background:#fff;border:1px solid #C9D2DB;border-radius:20px;
+        padding:8px 14px;font-size:13px;text-decoration:none;color:#1B2433;box-shadow:0 2px 8px rgba(0,0,0,.15);}
+  #card{position:absolute;right:10px;top:8px;z-index:5;background:rgba(255,255,255,.95);border-radius:8px;
+        padding:8px 12px;font-size:13px;box-shadow:0 2px 8px rgba(0,0,0,.15);display:none;max-width:45%;}
+  #card .n{font-weight:700}
+</style></head><body>
+<div id="map"></div>
+<div id="hud"><b>MapLibre 原型</b><br>帧时 <span id="fps">—</span><br><span id="info">加载中…</span></div>
+<div id="card"></div>
+<a id="back" href="japan-map-quiz.html">← 现行版对比</a>
+<script src="https://unpkg.com/maplibre-gl@5.6.0/dist/maplibre-gl.js"></script>
+<script src="https://unpkg.com/pmtiles@4.4.1/dist/pmtiles.js"></script>
+<script>
+const COLORS = ["CHN", "#e2806e", "KOR", "#9db8e0", "PRK", "#7d8fbd", "VNM", "#c96058", "LAO", "#b3b8e0", "THA", "#7d99cc", "KHM", "#e3c495", "MMR", "#a8cf9f", "MYS", "#e8d48a", "SGP", "#e6a0a0", "BRN", "#cba96e", "IDN", "#e29184", "TLS", "#e5cf8f", "PNG", "#d4a86a", "PHL", "#94aede", "IND", "#eeb27f", "LKA", "#c78d64", "NPL", "#b95f6e", "BTN", "#f0d75f", "BGD", "#97c9a2", "PLW", "#a5cde3", "FSM", "#86a9d4", "MHL", "#b5d3ea", "MNP", "#93b0d9", "TWN", "#86c3a8", "RUS", "#b8c4dd", "MNG", "#b7d3a1", "MDV", "#8fb8d8"];
+const p = new pmtiles.Protocol();
+maplibregl.addProtocol("pmtiles", p.tile);
+const map = new maplibregl.Map({
+  container:"map", attributionControl:false, maxZoom:16, dragRotate:false, pitchWithRotate:false, touchZoomRotate:true,
+  style:{ version:8, sources:{ ea:{ type:"vector", url:"pmtiles://ea.pmtiles" } },
+    layers:[
+      {id:"bg", type:"background", paint:{"background-color":"#dcebf5"}},
+      {id:"fill", source:"ea", "source-layer":"units", type:"fill",
+        paint:{"fill-color":["match",["get","grp"], ...COLORS, "#cccccc"]}},
+      {id:"border", source:"ea", "source-layer":"units", type:"line",
+        paint:{"line-color":"#5f5348","line-width":["interpolate",["linear"],["zoom"],2,0.4,10,0.9]}},
+      {id:"water", source:"ea", "source-layer":"water", type:"fill",
+        paint:{"fill-color":"#bcd8ec","fill-outline-color":"#9dc2dd"}},
+      {id:"rivers", source:"ea", "source-layer":"rivers", type:"line",
+        paint:{"line-color":"#9dc2dd","line-width":["interpolate",["linear"],["zoom"],3,0.5,10,1.4]}}
+    ]},
+  center:[112,22], zoom:2.2
+});
+map.touchZoomRotate.disableRotation();
+map.on("load",()=>{ document.getElementById("info").innerHTML="矢量瓦片 · GPU 渲染<br>按需取块，无需预先加载全部数据"; });
+map.on("click","fill",e=>{ const f=e.features&&e.features[0]; if(!f)return;
+  const c=document.getElementById("card");
+  c.innerHTML='<div class="n">'+f.properties.n+'</div><div style="color:#6B7688">'+f.properties.grp+'</div>';
+  c.style.display="block"; });
+// 帧时统计
+let frames=[],last=performance.now();
+(function tick(){ const n=performance.now(); frames.push(n-last); last=n; if(frames.length>40)frames.shift();
+  const s=[...frames].sort((a,b)=>a-b);
+  document.getElementById("fps").textContent=s.length?s[Math.floor(s.length/2)].toFixed(0)+"ms":"—";
+  requestAnimationFrame(tick); })();
+</script></body></html>

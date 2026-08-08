@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html lang="zh"><head><meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<title>東亜地図 WebGL 原型</title>
+<!--
+  渲染架构原型 (对照现版 quiz/japan-map-quiz.html 的 Canvas2D 方案)。
+  原理: 本图投影是墨卡托 => 缩放平移是纯仿射变换 => 全部顶点可以在加载时一次性投影+三角化,
+        上传 GPU 常驻; 之后每帧只改一个矩阵 uniform, CPU 每帧零几何工作。
+  于是现版的分档(LOD)/按帧烘焙/视口裁剪/Path2D缓存/低分辨率手势 全部不需要, 一并删除。
+-->
+<style>
+  html,body{margin:0;height:100%;overflow:hidden;background:#dcebf5;font-family:system-ui,-apple-system,'Noto Sans JP',sans-serif;}
+  #cv{position:absolute;inset:0;width:100%;height:100%;display:block;touch-action:none;}
+  #hud{position:absolute;left:8px;top:8px;background:rgba(255,255,255,.92);border-radius:8px;padding:8px 11px;
+       font-size:12px;line-height:1.6;color:#1B2433;box-shadow:0 2px 8px rgba(0,0,0,.15);z-index:5;}
+  #hud b{font-size:14px}
+  #fps{font-variant-numeric:tabular-nums;font-weight:700}
+  #load{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;
+        background:#dcebf5;color:#33415C;font-size:14px;z-index:9;text-align:center;padding:20px;}
+  #back{position:absolute;right:10px;bottom:12px;z-index:5;background:#fff;border:1px solid #C9D2DB;border-radius:20px;
+        padding:8px 14px;font-size:13px;text-decoration:none;color:#1B2433;box-shadow:0 2px 8px rgba(0,0,0,.15);}
+</style></head><body>
+<canvas id="cv"></canvas>
+<div id="hud"><b>WebGL 原型</b><br>帧时 <span id="fps">—</span><br><span id="info">加载中…</span></div>
+<a id="back" href="japan-map-quiz.html">← 现行版对比</a>
+<div id="load">正在加载数据并上传 GPU…<br><span style="font-size:12px;color:#6B7688">首次需要几秒，之后缩放全程不再有任何计算</span></div>
+<script>!function(e){"object"==typeof exports&&"undefined"!=typeof module?module.exports=e():"function"==typeof define&&define.amd?define([],e):("undefined"!=typeof window?window:"undefined"!=typeof global?global:"undefined"!=typeof self?self:this).earcut=e()}(function(){return function r(x,i,u){function f(n,e){if(!i[n]){if(!x[n]){var t="function"==typeof require&&require;if(!e&&t)return t(n,!0);if(o)return o(n,!0);throw(e=new Error("Cannot find module '"+n+"'")).code="MODULE_NOT_FOUND",e}t=i[n]={exports:{}},x[n][0].call(t.exports,function(e){return f(x[n][1][e]||e)},t,t.exports,r,x,i,u)}return i[n].exports}for(var o="function"==typeof require&&require,e=0;e<u.length;e++)f(u[e]);return f}({1:[function(e,n,t){"use strict";function r(e,n,t){t=t||2;var r,x,i,u,f,o=n&&n.length,v=o?n[0]*t:e.length,p=s(e,0,v,t,!0),y=[];if(p&&p.next!==p.prev){if(o&&(p=function(e,n,t,r){var x,i,u,f,o=[];for(x=0,i=n.length;x<i;x++)f=n[x]*r,u=x<i-1?n[x+1]*r:e.length,(f=s(e,f,u,r,!1))===f.next&&(f.steiner=!0),o.push(function(e){var n=e,t=e;for(;(n.x<t.x||n.x===t.x&&n.y<t.y)&&(t=n),n=n.next,n!==e;);return t}(f));for(o.sort(c),x=0;x<o.length;x++)t=function(e,n){var t=function(e,n){var t,r=n,x=e.x,i=e.y,u=-1/0;do{if(i<=r.y&&i>=r.next.y&&r.next.y!==r.y){var f=r.x+(i-r.y)*(r.next.x-r.x)/(r.next.y-r.y);if(f<=x&&u<f&&(u=f,t=r.x<r.next.x?r:r.next,f===x))return t}}while(r=r.next,r!==n);if(!t)return null;var o,v=t,p=t.x,y=t.y,a=1/0;r=t;for(;x>=r.x&&r.x>=p&&x!==r.x&&D(i<y?x:u,i,p,y,i<y?u:x,i,r.x,r.y)&&(o=Math.abs(i-r.y)/(x-r.x),_(r,e)&&(o<a||o===a&&(r.x>t.x||r.x===t.x&&function(e,n){return E(e.prev,e,n.prev)<0&&E(n.next,e,e.next)<0}(t,r)))&&(t=r,a=o)),r=r.next,r!==v;);return t}(e,n);if(!t)return n;n=j(t,e);return q(n,n.next),q(t,t.next)}(o[x],t);return t}(e,n,p,t)),e.length>80*t){for(var a=r=e[0],l=x=e[1],h=t;h<v;h+=t)(i=e[h])<a&&(a=i),(u=e[h+1])<l&&(l=u),r<i&&(r=i),x<u&&(x=u);f=0!==(f=Math.max(r-a,x-l))?32767/f:0}O(p,y,t,a,l,f,0)}return y}function s(e,n,t,r,x){var i,u;if(x===0<d(e,n,t,r))for(i=n;i<t;i+=r)u=f(i,e[i],e[i+1],u);else for(i=t-r;n<=i;i-=r)u=f(i,e[i],e[i+1],u);return u&&N(u,u.next)&&(C(u),u=u.next),u}function q(e,n){if(!e)return e;n=n||e;var t,r=e;do{if(t=!1,r.steiner||!N(r,r.next)&&0!==E(r.prev,r,r.next))r=r.next;else{if(C(r),(r=n=r.prev)===r.next)break;t=!0}}while(t||r!==n);return n}function O(e,n,t,r,x,i,u){if(e){if(!u&&i){for(var f=e,o=r,v=x,p=i,y=f;0===y.z&&(y.z=k(y.x,y.y,o,v,p)),y.prevZ=y.prev,y.nextZ=y.next,(y=y.next)!==f;);y.prevZ.nextZ=null,y.prevZ=null;var a,l,h,s,c,d,Z,g,w=y,M=1;do{for(l=w,c=w=null,d=0;l;){for(d++,h=l,a=Z=0;a<M&&(Z++,h=h.nextZ);a++);for(g=M;0<Z||0<g&&h;)0!==Z&&(0===g||!h||l.z<=h.z)?(l=(s=l).nextZ,Z--):(h=(s=h).nextZ,g--),c?c.nextZ=s:w=s,s.prevZ=c,c=s;l=h}}while(c.nextZ=null,M*=2,1<d)}for(var b,m,z=e;e.prev!==e.next;)if(b=e.prev,m=e.next,i?function(e,n,t,r){var x=e.prev,i=e,u=e.next;if(0<=E(x,i,u))return;var f=x.x,o=i.x,v=u.x,p=x.y,y=i.y,a=u.y,l=f<o?f<v?f:v:o<v?o:v,h=p<y?p<a?p:a:y<a?y:a,s=o<f?v<f?f:v:v<o?o:v,c=y<p?a<p?p:a:a<y?y:a,d=k(l,h,n,t,r),Z=k(s,c,n,t,r),g=e.prevZ,w=e.nextZ;for(;g&&g.z>=d&&w&&w.z<=Z;){if(g.x>=l&&g.x<=s&&g.y>=h&&g.y<=c&&g!==x&&g!==u&&D(f,p,o,y,v,a,g.x,g.y)&&0<=E(g.prev,g,g.next))return;if(g=g.prevZ,w.x>=l&&w.x<=s&&w.y>=h&&w.y<=c&&w!==x&&w!==u&&D(f,p,o,y,v,a,w.x,w.y)&&0<=E(w.prev,w,w.next))return;w=w.nextZ}for(;g&&g.z>=d;){if(g.x>=l&&g.x<=s&&g.y>=h&&g.y<=c&&g!==x&&g!==u&&D(f,p,o,y,v,a,g.x,g.y)&&0<=E(g.prev,g,g.next))return;g=g.prevZ}for(;w&&w.z<=Z;){if(w.x>=l&&w.x<=s&&w.y>=h&&w.y<=c&&w!==x&&w!==u&&D(f,p,o,y,v,a,w.x,w.y)&&0<=E(w.prev,w,w.next))return;w=w.nextZ}return 1}(e,r,x,i):function(e){var n=e.prev,t=e,e=e.next;if(0<=E(n,t,e))return;var r=n.x,x=t.x,i=e.x,u=n.y,f=t.y,o=e.y,v=r<x?r<i?r:i:x<i?x:i,p=u<f?u<o?u:o:f<o?f:o,y=x<r?i<r?r:i:i<x?x:i,a=f<u?o<u?u:o:o<f?f:o,l=e.next;for(;l!==n;){if(l.x>=v&&l.x<=y&&l.y>=p&&l.y<=a&&D(r,u,x,f,i,o,l.x,l.y)&&0<=E(l.prev,l,l.next))return;l=l.next}return 1}(e))n.push(b.i/t|0),n.push(e.i/t|0),n.push(m.i/t|0),C(e),e=m.next,z=m.next;else if((e=m)===z){u?1===u?O(e=function(e,n,t){var r=e;do{var x=r.prev,i=r.next.next}while(!N(x,i)&&U(x,r,r.next,i)&&_(x,i)&&_(i,x)&&(n.push(x.i/t|0),n.push(r.i/t|0),n.push(i.i/t|0),C(r),C(r.next),r=e=i),r=r.next,r!==e);return q(r)}(q(e),n,t),n,t,r,x,i,2):2===u&&function(e,n,t,r,x,i){var u=e;do{for(var f,o=u.next.next;o!==u.prev;){if(u.i!==o.i&&function(e,n){return e.next.i!==n.i&&e.prev.i!==n.i&&!function(e,n){var t=e;do{if(t.i!==e.i&&t.next.i!==e.i&&t.i!==n.i&&t.next.i!==n.i&&U(t,t.next,e,n))return 1}while(t=t.next,t!==e);return}(e,n)&&(_(e,n)&&_(n,e)&&function(e,n){var t=e,r=!1,x=(e.x+n.x)/2,i=(e.y+n.y)/2;for(;t.y>i!=t.next.y>i&&t.next.y!==t.y&&x<(t.next.x-t.x)*(i-t.y)/(t.next.y-t.y)+t.x&&(r=!r),t=t.next,t!==e;);return r}(e,n)&&(E(e.prev,e,n.prev)||E(e,n.prev,n))||N(e,n)&&0<E(e.prev,e,e.next)&&0<E(n.prev,n,n.next))}(u,o))return f=j(u,o),u=q(u,u.next),f=q(f,f.next),O(u,n,t,r,x,i,0),O(f,n,t,r,x,i,0);o=o.next}}while(u=u.next,u!==e)}(e,n,t,r,x,i):O(q(e),n,t,r,x,i,1);break}}}function c(e,n){return e.x-n.x}function k(e,n,t,r,x){return(e=1431655765&((e=858993459&((e=252645135&((e=16711935&((e=(e-t)*x|0)|e<<8))|e<<4))|e<<2))|e<<1))|(n=1431655765&((n=858993459&((n=252645135&((n=16711935&((n=(n-r)*x|0)|n<<8))|n<<4))|n<<2))|n<<1))<<1}function D(e,n,t,r,x,i,u,f){return(e-u)*(i-f)<=(x-u)*(n-f)&&(t-u)*(n-f)<=(e-u)*(r-f)&&(x-u)*(r-f)<=(t-u)*(i-f)}function E(e,n,t){return(n.y-e.y)*(t.x-n.x)-(n.x-e.x)*(t.y-n.y)}function N(e,n){return e.x===n.x&&e.y===n.y}function U(e,n,t,r){var x=v(E(e,n,t)),i=v(E(e,n,r)),u=v(E(t,r,e)),f=v(E(t,r,n));return x!==i&&u!==f||(0===x&&o(e,t,n)||(0===i&&o(e,r,n)||(0===u&&o(t,e,r)||!(0!==f||!o(t,n,r)))))}function o(e,n,t){return n.x<=Math.max(e.x,t.x)&&n.x>=Math.min(e.x,t.x)&&n.y<=Math.max(e.y,t.y)&&n.y>=Math.min(e.y,t.y)}function v(e){return 0<e?1:e<0?-1:0}function _(e,n){return E(e.prev,e,e.next)<0?0<=E(e,n,e.next)&&0<=E(e,e.prev,n):E(e,n,e.prev)<0||E(e,e.next,n)<0}function j(e,n){var t=new u(e.i,e.x,e.y),r=new u(n.i,n.x,n.y),x=e.next,i=n.prev;return(e.next=n).prev=e,(t.next=x).prev=t,(r.next=t).prev=r,(i.next=r).prev=i,r}function f(e,n,t,r){e=new u(e,n,t);return r?(e.next=r.next,(e.prev=r).next.prev=e,r.next=e):(e.prev=e).next=e,e}function C(e){e.next.prev=e.prev,e.prev.next=e.next,e.prevZ&&(e.prevZ.nextZ=e.nextZ),e.nextZ&&(e.nextZ.prevZ=e.prevZ)}function u(e,n,t){this.i=e,this.x=n,this.y=t,this.prev=null,this.next=null,this.z=0,this.prevZ=null,this.nextZ=null,this.steiner=!1}function d(e,n,t,r){for(var x=0,i=n,u=t-r;i<t;i+=r)x+=(e[u]-e[i])*(e[i+1]+e[u+1]),u=i;return x}n.exports=r,(n.exports.default=r).deviation=function(e,n,t,r){var x=n&&n.length,i=x?n[0]*t:e.length,u=Math.abs(d(e,0,i,t));if(x)for(var f=0,o=n.length;f<o;f++){var v=n[f]*t,p=f<o-1?n[f+1]*t:e.length;u-=Math.abs(d(e,v,p,t))}for(var y=0,f=0;f<r.length;f+=3){var a=r[f]*t,l=r[f+1]*t,h=r[f+2]*t;y+=Math.abs((e[a]-e[h])*(e[1+l]-e[1+a])-(e[a]-e[l])*(e[1+h]-e[1+a]))}return 0===u&&0===y?0:Math.abs((y-u)/u)},r.flatten=function(e){for(var n=e[0][0].length,t={vertices:[],holes:[],dimensions:n},r=0,x=0;x<e.length;x++){for(var i=0;i<e[x].length;i++)for(var u=0;u<n;u++)t.vertices.push(e[x][i][u]);0<x&&(r+=e[x-1].length,t.holes.push(r))}return t}},{}]},{},[1])(1)});
+</script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.8.5/d3.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/topojson/3.0.2/topojson.min.js"></script>
+<script>
+const KYO_COLORS = {"CHN": "#e2806e", "KOR": "#9db8e0", "PRK": "#7d8fbd", "VNM": "#c96058", "LAO": "#b3b8e0", "THA": "#7d99cc", "KHM": "#e3c495", "MMR": "#a8cf9f", "MYS": "#e8d48a", "SGP": "#e6a0a0", "BRN": "#cba96e", "IDN": "#e29184", "TLS": "#e5cf8f", "PNG": "#d4a86a", "PHL": "#94aede", "IND": "#eeb27f", "LKA": "#c78d64", "NPL": "#b95f6e", "BTN": "#f0d75f", "BGD": "#97c9a2", "PLW": "#a5cde3", "FSM": "#86a9d4", "MHL": "#b5d3ea", "MNP": "#93b0d9", "TWN": "#86c3a8", "RUS": "#b8c4dd", "MNG": "#b7d3a1", "MDV": "#8fb8d8"};
+const JP_FILL="#f2ede6", WATER="#bcd8ec", RIVER="#9dc2dd", BORDER="#5f5348";
+const hex=c=>[parseInt(c.slice(1,3),16)/255,parseInt(c.slice(3,5),16)/255,parseInt(c.slice(5,7),16)/255];
+const cv=document.getElementById("cv");
+const gl=cv.getContext("webgl",{antialias:true,alpha:false});
+if(!gl){document.getElementById("load").textContent="此浏览器不支持 WebGL";}
+const VS=`attribute vec2 a;uniform float k;uniform vec2 t;uniform vec2 res;
+void main(){vec2 s=a*k+t;gl_Position=vec4(2.0*s.x/res.x-1.0,1.0-2.0*s.y/res.y,0.0,1.0);}`;
+const FS=`precision mediump float;uniform vec4 col;void main(){gl_FragColor=col;}`;
+function sh(t,src){const s=gl.createShader(t);gl.shaderSource(s,src);gl.compileShader(s);
+  if(!gl.getShaderParameter(s,gl.COMPILE_STATUS))throw new Error(gl.getShaderInfoLog(s));return s;}
+const prog=gl.createProgram();
+gl.attachShader(prog,sh(gl.VERTEX_SHADER,VS));gl.attachShader(prog,sh(gl.FRAGMENT_SHADER,FS));
+gl.linkProgram(prog);gl.useProgram(prog);
+const A=gl.getAttribLocation(prog,"a"), U={k:gl.getUniformLocation(prog,"k"),t:gl.getUniformLocation(prog,"t"),
+  res:gl.getUniformLocation(prog,"res"),col:gl.getUniformLocation(prog,"col")};
+gl.enableVertexAttribArray(A);
+
+let projection, batches=[], lineBatch=null, riverBatch=null, tr={k:1,x:0,y:0}, dpr=Math.min(devicePixelRatio||1,2);
+function resize(){ cv.width=Math.round(innerWidth*dpr); cv.height=Math.round(innerHeight*dpr);
+  gl.viewport(0,0,cv.width,cv.height); }
+function upload(arr){ const b=gl.createBuffer(); gl.bindBuffer(gl.ARRAY_BUFFER,b);
+  gl.bufferData(gl.ARRAY_BUFFER,arr,gl.STATIC_DRAW); return b; }
+
+// —— 一次性: 投影 + 三角化 + 上传 ——
+function build(topo){
+  const w=innerWidth,h=innerHeight;
+  const units=topojson.feature(topo,topo.objects.units).features;
+  projection=d3.geoMercator().rotate([-150,0]);
+  projection.fitExtent([[16,56],[w-16,h-64]],{type:"FeatureCollection",features:units});
+  const P=projection;
+  const byColor=new Map();
+  const lines=[];
+  const push=(arr,x,y)=>{arr.push(x,y);};
+  units.forEach(u=>{
+    const col=u.properties.grp==="JPN"?JP_FILL:(KYO_COLORS[u.properties.grp]||"#ccc");
+    if(!byColor.has(col)) byColor.set(col,[]);
+    const tris=byColor.get(col);
+    const polys=u.geometry.type==="MultiPolygon"?u.geometry.coordinates:[u.geometry.coordinates];
+    polys.forEach(pl=>{
+      const flat=[],holes=[];let n=0;
+      pl.forEach((ring,ri)=>{
+        if(ri>0) holes.push(n);
+        for(let i=0;i<ring.length-1;i++){const p=P(ring[i]); if(!p)continue; flat.push(p[0],p[1]); n++;}
+        // 边界线段
+        for(let i=0;i<ring.length-1;i++){const a=P(ring[i]),b=P(ring[i+1]); if(a&&b) lines.push(a[0],a[1],b[0],b[1]);}
+      });
+      if(n<3) return;
+      const idx=earcut(flat,holes,2);
+      for(let i=0;i<idx.length;i++){ tris.push(flat[idx[i]*2],flat[idx[i]*2+1]); }
+    });
+  });
+  batches=[...byColor.entries()].map(([c,arr])=>({buf:upload(new Float32Array(arr)),n:arr.length/2,col:hex(c)}));
+  lineBatch={buf:upload(new Float32Array(lines)),n:lines.length/2,col:hex(BORDER)};
+  // 湖泊 + 河流
+  const wt=topo.objects.water?topojson.feature(topo,topo.objects.water).features:[];
+  const wtri=[];
+  wt.forEach(f=>{ (f.geometry.type==="MultiPolygon"?f.geometry.coordinates:[f.geometry.coordinates]).forEach(pl=>{
+    const flat=[],holes=[];let n=0;
+    pl.forEach((ring,ri)=>{ if(ri>0)holes.push(n);
+      for(let i=0;i<ring.length-1;i++){const p=P(ring[i]); if(!p)continue; flat.push(p[0],p[1]); n++;} });
+    if(n<3)return; const idx=earcut(flat,holes,2);
+    for(let i=0;i<idx.length;i++) wtri.push(flat[idx[i]*2],flat[idx[i]*2+1]); }); });
+  const rv=topo.objects.rivers?topojson.feature(topo,topo.objects.rivers).features:[];
+  const rl=[];
+  rv.forEach(f=>{ const ls=f.geometry.type==="MultiLineString"?f.geometry.coordinates:[f.geometry.coordinates];
+    ls.forEach(line=>{ for(let i=0;i<line.length-1;i++){const a=P(line[i]),b=P(line[i+1]); if(a&&b) rl.push(a[0],a[1],b[0],b[1]); } }); });
+  batches.push({buf:upload(new Float32Array(wtri)),n:wtri.length/2,col:hex(WATER),water:true});
+  riverBatch={buf:upload(new Float32Array(rl)),n:rl.length/2,col:hex(RIVER)};
+  const total=batches.reduce((s,b)=>s+b.n,0)+lineBatch.n+riverBatch.n;
+  document.getElementById("info").innerHTML=
+    units.length+" 个单元 · "+(total/1e6).toFixed(2)+"M 顶点常驻 GPU<br>全精度，无分档、无瓦片";
+}
+let frames=[],last=performance.now();
+function draw(){
+  const t0=performance.now();
+  gl.clearColor(0.863,0.922,0.961,1); gl.clear(gl.COLOR_BUFFER_BIT);
+  gl.uniform1f(U.k,tr.k*dpr); gl.uniform2f(U.t,tr.x*dpr,tr.y*dpr); gl.uniform2f(U.res,cv.width,cv.height);
+  for(const b of batches){ if(b.water) continue;
+    gl.bindBuffer(gl.ARRAY_BUFFER,b.buf); gl.vertexAttribPointer(A,2,gl.FLOAT,false,0,0);
+    gl.uniform4f(U.col,b.col[0],b.col[1],b.col[2],1); gl.drawArrays(gl.TRIANGLES,0,b.n); }
+  gl.bindBuffer(gl.ARRAY_BUFFER,lineBatch.buf); gl.vertexAttribPointer(A,2,gl.FLOAT,false,0,0);
+  gl.uniform4f(U.col,lineBatch.col[0],lineBatch.col[1],lineBatch.col[2],1); gl.drawArrays(gl.LINES,0,lineBatch.n);
+  for(const b of batches){ if(!b.water) continue;
+    gl.bindBuffer(gl.ARRAY_BUFFER,b.buf); gl.vertexAttribPointer(A,2,gl.FLOAT,false,0,0);
+    gl.uniform4f(U.col,b.col[0],b.col[1],b.col[2],1); gl.drawArrays(gl.TRIANGLES,0,b.n); }
+  gl.bindBuffer(gl.ARRAY_BUFFER,riverBatch.buf); gl.vertexAttribPointer(A,2,gl.FLOAT,false,0,0);
+  gl.uniform4f(U.col,riverBatch.col[0],riverBatch.col[1],riverBatch.col[2],1); gl.drawArrays(gl.LINES,0,riverBatch.n);
+  const now=performance.now(); frames.push(now-last); last=now; if(frames.length>40)frames.shift();
+  const s=[...frames].sort((a,b)=>a-b);
+  document.getElementById("fps").textContent = s.length? (s[Math.floor(s.length/2)].toFixed(0)+"ms  (绘制 "+(now-t0).toFixed(1)+"ms)") : "—";
+}
+let raf=0; const req=()=>{ if(!raf) raf=requestAnimationFrame(()=>{raf=0;draw();}); };
+addEventListener("resize",()=>{resize();req();});
+fetch(new URLSearchParams(location.search).get("d")||"ea_t1.topojson").then(r=>r.json()).then(topo=>{
+  resize(); const t0=performance.now(); build(topo);
+  document.getElementById("load").style.display="none";
+  console.log("build ms",(performance.now()-t0).toFixed(0));
+  document.getElementById("info").innerHTML += "<br>建图耗时 "+(performance.now()-t0).toFixed(0)+"ms（仅一次）";
+  const zoom=d3.zoom().scaleExtent([1,600]).on("zoom",e=>{ tr=e.transform; req(); });
+  d3.select(cv).call(zoom).on("dblclick.zoom",null);
+  req();
+}).catch(e=>{document.getElementById("load").textContent="加载失败: "+e.message;});
+</script></body></html>

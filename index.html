@@ -49,6 +49,19 @@ footer{margin-top:36px;font-size:11.5px;color:var(--muted)}
     <p>大阪府居住区域等级可视化：按治安与环境给各区域分级配色。</p>
   </a>
 </div>
+<div class="cards" style="margin-top:18px">
+  <div style="font-size:12px;font-weight:700;letter-spacing:.18em;color:#6B7688;margin-bottom:6px">渲染架构原型（对比用，非正式功能）</div>
+  <a class="card" href="quiz/ml-proto.html" style="border-left-color:#2E6E8E">
+    <span class="tag" style="background:#2E6E8E">PROTO A</span>
+    <h2>東亜地図 · MapLibre + 矢量瓦片</h2>
+    <p>GPU 渲染 + 按需取块。首屏只取约 140KB（总数据 29.6MB 按需读取）。左上角显示实时帧时，可与现行版对比。</p>
+  </a>
+  <a class="card" href="quiz/gl-proto.html" style="border-left-color:#B3541E">
+    <span class="tag" style="background:#B3541E">PROTO E</span>
+    <h2>東亜地図 · 自建 WebGL</h2>
+    <p>全部顶点一次性投影后常驻 GPU，每帧只改矩阵。缩放全程零计算，但首次建图需要十几秒（生产版需预先烘焙）。</p>
+  </a>
+</div>
 <footer>数据：国土数値情報 N03 / 令和2年国勢調査 (e-Stat) / Natural Earth（公有领域）/ OpenStreetMap（ODbL）/
 geoBoundaries CGAZ（CC BY 4.0, geoboundaries.org）/ 菲律宾统计局 PSGC 2023</footer>
 </body>
