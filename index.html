@@ -28,69 +28,51 @@ a.card .wip{color:var(--muted)}
 footer{margin-top:34px;font-size:11.5px;color:var(--muted);max-width:680px;line-height:1.7}
 @media (max-width:480px){header h1{font-size:22px} a.card h2{font-size:17px}}
 
-/* ---------- Claw'd ---------- */
-/* 8 秒循环：待机 → 右钳伸到身后掏出笔电 → 移到左边 → 掀开屏幕 → 左钳敲键盘。
-   全部内联 SVG + CSS 关键帧，无外部资源、无 JS。 */
-.clawd{width:100%;max-width:680px;margin:0 0 24px;background:#F0EEE6;border:1px solid var(--line);
-  border-radius:10px;padding:12px 16px;display:flex;align-items:center;gap:16px;overflow:hidden}
-.clawd svg{display:block;flex:0 0 auto}
-.clawd .say{font-size:12.5px;color:var(--muted);line-height:1.6;min-width:0}
+/* ---------- Claw'd（官方精灵图） ---------- */
+/* Claw'd 不是我画的：字符与配色直接取自 Claude Code 自身
+   （clawd_body = rgb(215,119,87)，暗部 = clawd_background 黑），
+   用等宽字体按原样渲染，所以形状与官方一致，不掺我的臆测。
+   笔电是像素 SVG，8 秒循环：藏在身后 → 一格格挪到左边 → 掀盖 → 代码逐行冒出。 */
+.clawd{width:100%;max-width:680px;margin:0 0 24px;background:#FBFAF7;border:1px solid var(--line);
+  border-radius:10px;padding:14px 16px 12px;display:flex;align-items:center;gap:14px;overflow:hidden;flex-wrap:wrap}
+.clawd .stage{display:flex;align-items:flex-end;gap:6px;flex:0 0 auto}
+.clawd svg{display:block;image-rendering:pixelated}
+.cd-sprite{font-family:'DejaVu Sans Mono','Menlo','Consolas',monospace;font-size:17px;line-height:1.02;
+  letter-spacing:0;white-space:pre;color:#D77757;margin:0}
+.cd-sprite .k{background:#000}
+.clawd .say{font-size:12.5px;color:var(--muted);line-height:1.6;flex:1 1 190px;min-width:0}
 .clawd .say b{color:var(--soft);font-weight:800}
+.cd-tail{color:#8A96A3}
 
-@keyframes cd-bob{0%,100%{transform:translateY(0)}50%{transform:translateY(-2px)}}
-#cd-crab{animation:cd-bob 1.7s ease-in-out infinite}
-
-/* 笔电：藏在蟹身后 → 掏出 → 滑到左边 */
-@keyframes cd-laptop{
-  0%,15%   {transform:translate(96px,16px) scale(.28);opacity:0}
-  19%      {transform:translate(92px,10px) scale(.5); opacity:1}
-  30%      {transform:translate(46px,3px)  scale(.82);opacity:1}
-  38%,100% {transform:translate(0,0)       scale(1);  opacity:1}
+@keyframes cd-lap{
+  0%,14%  {transform:translate(26px,4px);opacity:0}
+  16%     {transform:translate(26px,4px);opacity:1}
+  22%     {transform:translate(20px,3px)}
+  28%     {transform:translate(14px,2px)}
+  34%     {transform:translate(7px,1px)}
+  40%,100%{transform:translate(0,0)}
 }
-#cd-laptop{animation:cd-laptop 8s cubic-bezier(.32,.86,.3,1) infinite}
-@keyframes cd-lid{0%,38%{transform:rotateX(-86deg)}48%,100%{transform:rotateX(0)}}
-#cd-lid{animation:cd-lid 8s cubic-bezier(.3,1.25,.4,1) infinite;transform-origin:bottom;transform-box:fill-box}
-
-/* 右钳：伸到身后掏东西 */
-@keyframes cd-clawR{
-  0%,13%  {transform:rotate(0) translate(0,0)}
-  19%     {transform:rotate(38deg) translate(5px,7px)}
-  28%     {transform:rotate(12deg) translate(1px,2px)}
-  38%,100%{transform:rotate(0) translate(0,0)}
-}
-#cd-clawR{animation:cd-clawR 8s ease-in-out infinite;transform-origin:left center;transform-box:fill-box}
-
-/* 左钳：伸到键盘上敲 */
-@keyframes cd-clawL{
-  0%,36%  {transform:translate(0,0) rotate(0)}
-  46%     {transform:translate(-14px,4px) rotate(-8deg)}
-  50%{transform:translate(-14px,8px) rotate(-8deg)} 54%{transform:translate(-14px,4px) rotate(-8deg)}
-  60%{transform:translate(-16px,8px) rotate(-10deg)}64%{transform:translate(-16px,4px) rotate(-10deg)}
-  72%{transform:translate(-13px,8px) rotate(-6deg)} 76%{transform:translate(-13px,4px) rotate(-6deg)}
-  86%{transform:translate(-15px,8px) rotate(-9deg)} 90%{transform:translate(-15px,4px) rotate(-9deg)}
-  96%,100%{transform:translate(0,0) rotate(0)}
-}
-#cd-clawL{animation:cd-clawL 8s ease-in-out infinite;transform-origin:right center;transform-box:fill-box}
-
-@keyframes cd-eye{0%,93%,100%{transform:scaleY(1)}96%{transform:scaleY(.12)}}
-.cd-eye{animation:cd-eye 4.4s ease-in-out infinite;transform-origin:center;transform-box:fill-box}
-
-.cd-code{opacity:0}
-@keyframes cd-line{0%,48%{opacity:0;transform:translateX(-4px)}54%,100%{opacity:1;transform:translateX(0)}}
-#cl1{animation:cd-line 8s ease-out infinite}
-#cl2{animation:cd-line 8s ease-out infinite;animation-delay:.45s}
-#cl3{animation:cd-line 8s ease-out infinite;animation-delay:.9s}
-#cl4{animation:cd-line 8s ease-out infinite;animation-delay:1.35s}
-#cl5{animation:cd-line 8s ease-out infinite;animation-delay:1.8s}
-@keyframes cd-caretOn{0%,52%{opacity:0}56%,100%{opacity:1}}
-@keyframes cd-blink{0%,49%{opacity:1}50%,100%{opacity:0}}
-#cd-caret{animation:cd-caretOn 8s steps(1,end) infinite, cd-blink .85s steps(1,end) infinite}
-
+#cd-lap{animation:cd-lap 8s steps(1,end) infinite}
+@keyframes cd-shut{0%,40%{opacity:1}41%,100%{opacity:0}}
+@keyframes cd-open{0%,40%{opacity:0}41%,100%{opacity:1}}
+#cd-shut{animation:cd-shut 8s steps(1,end) infinite}
+#cd-open{animation:cd-open 8s steps(1,end) infinite}
+@keyframes cd-hop{0%,49%{transform:translateY(0)}50%,100%{transform:translateY(-1px)}}
+#cd-claw{animation:cd-hop 1.1s steps(1,end) infinite}
+.cd-c{opacity:0}
+@keyframes cd-ln{0%,46%{opacity:0}47%,100%{opacity:1}}
+#c1{animation:cd-ln 8s steps(1,end) infinite}
+#c2{animation:cd-ln 8s steps(1,end) infinite;animation-delay:.5s}
+#c3{animation:cd-ln 8s steps(1,end) infinite;animation-delay:1s}
+#c4{animation:cd-ln 8s steps(1,end) infinite;animation-delay:1.5s}
+@keyframes cd-cur{0%,46%{opacity:0}47%,100%{opacity:1}}
+@keyframes cd-bl{0%,49%{opacity:1}50%,100%{opacity:0}}
+#cd-cur{animation:cd-cur 8s steps(1,end) infinite, cd-bl .7s steps(1,end) infinite}
 @media (prefers-reduced-motion:reduce){
-  #cd-crab,#cd-laptop,#cd-lid,#cd-clawL,#cd-clawR,.cd-eye,.cd-code,#cd-caret{animation:none!important}
-  #cd-laptop{transform:none;opacity:1}#cd-lid{transform:none}.cd-code{opacity:1}
+  #cd-lap,#cd-shut,#cd-open,#cd-claw,.cd-c,#cd-cur{animation:none!important}
+  #cd-lap{transform:none;opacity:1}#cd-shut{opacity:0}#cd-open{opacity:1}.cd-c{opacity:1}
 }
-@media (max-width:480px){.clawd{gap:10px;padding:10px 12px}.clawd .say{font-size:11.5px}}
+@media (max-width:480px){.clawd{gap:10px;padding:12px}.clawd .say{font-size:11.5px}.cd-sprite{font-size:15px}}
 
 </style>
 </head>
@@ -103,71 +85,45 @@ footer{margin-top:34px;font-size:11.5px;color:var(--muted);max-width:680px;line-
 
 <!-- CLAWD:START -->
 <div class="clawd" aria-label="Claw'd 正在敲代码">
-  <svg width="182" height="88" viewBox="0 0 182 88" role="img">
-    <title>Claw'd 掏出笔电开始敲代码</title>
-
-    <!-- 笔电（左） -->
-    <g id="cd-laptop">
-      <g id="cd-lid">
-        <rect x="8" y="14" width="66" height="42" rx="4" fill="#1B2433"/>
-        <rect x="11.5" y="17.5" width="59" height="35" rx="2.5" fill="#0E141C"/>
-        <g class="cd-code" id="cl1"><rect x="16" y="22"   width="22" height="2.8" rx="1.4" fill="#7FB7D9"/></g>
-        <g class="cd-code" id="cl2"><rect x="16" y="28"   width="37" height="2.8" rx="1.4" fill="#9BD3A8"/></g>
-        <g class="cd-code" id="cl3"><rect x="20" y="34"   width="28" height="2.8" rx="1.4" fill="#E6C97A"/></g>
-        <g class="cd-code" id="cl4"><rect x="20" y="40"   width="41" height="2.8" rx="1.4" fill="#9BD3A8"/></g>
-        <g class="cd-code" id="cl5"><rect x="16" y="46"   width="18" height="2.8" rx="1.4" fill="#7FB7D9"/></g>
-        <rect id="cd-caret" x="36" y="46" width="2.2" height="2.8" fill="#F0EEE6"/>
+  <div class="stage">
+    <svg width="112" height="60" viewBox="0 0 28 15" shape-rendering="crispEdges" aria-hidden="true">
+      <g id="cd-lap">
+        <g id="cd-shut">
+          <rect x="1" y="11" width="24" height="3" fill="#2A3442"/>
+          <rect x="1" y="11" width="24" height="1" fill="#48566A"/>
+        </g>
+        <g id="cd-open">
+          <rect x="2" y="0"  width="22" height="12" fill="#2A3442"/>
+          <rect x="3" y="1"  width="20" height="10" fill="#0E141C"/>
+          <g class="cd-c" id="c1"><rect x="4" y="2" width="7"  height="1" fill="#7FB7D9"/></g>
+          <g class="cd-c" id="c2"><rect x="4" y="4" width="12" height="1" fill="#9BD3A8"/></g>
+          <g class="cd-c" id="c3"><rect x="6" y="6" width="9"  height="1" fill="#E6C97A"/></g>
+          <g class="cd-c" id="c4"><rect x="6" y="8" width="13" height="1" fill="#9BD3A8"/></g>
+          <rect id="cd-cur" x="4" y="10" width="1" height="1" fill="#F0EEE6"/>
+          <rect x="0" y="12" width="26" height="2" fill="#B8C2CC"/>
+          <rect x="0" y="12" width="26" height="1" fill="#D2DAE2"/>
+          <rect x="9" y="13" width="8"  height="1" fill="#8C9AA8"/>
+        </g>
       </g>
-      <path d="M4 56 h74 l7 9 H-3 Z" fill="#CBD4DC" stroke="#9FAEBC" stroke-width=".9"/>
-      <rect x="32" y="59.5" width="22" height="1.8" rx=".9" fill="#8C9AA8"/>
-    </g>
-
-    <!-- 螃蟹（右）。定位放外层，动画放内层——
-         SVG 的 transform 属性会被 CSS transform 动画整个覆盖，不能写在同一个元素上。 -->
-    <g transform="translate(92,8)"><g id="cd-crab">
-      <g stroke="#B85A3C" stroke-width="3" stroke-linecap="round" fill="none">
-        <path d="M20 50 l-9 8"/><path d="M27 53 l-6 9"/><path d="M35 54 l-2 9"/>
-        <path d="M50 50 l9 8"/><path d="M43 53 l6 9"/><path d="M35 54 l2 9"/>
-      </g>
-      <!-- 左钳：会伸过去敲键盘 -->
-      <g id="cd-clawL">
-        <path d="M22 42 l-11 3" stroke="#B85A3C" stroke-width="4.5" stroke-linecap="round"/>
-        <path d="M11 45 q-10 -7 -13 1 q-1 7 6.5 7 q5.5 0 6.5 -8 Z" fill="#D97757"/>
-        <path d="M0 39 q-5 2 -3 6" stroke="#B85A3C" stroke-width="3" fill="none" stroke-linecap="round"/>
-      </g>
-      <!-- 右钳：去身后掏笔电 -->
-      <g id="cd-clawR">
-        <path d="M48 42 l11 3" stroke="#B85A3C" stroke-width="4.5" stroke-linecap="round"/>
-        <path d="M59 45 q10 -7 13 1 q1 7 -6.5 7 q-5.5 0 -6.5 -8 Z" fill="#D97757"/>
-        <path d="M70 39 q5 2 3 6" stroke="#B85A3C" stroke-width="3" fill="none" stroke-linecap="round"/>
-      </g>
-      <!-- 眼柄 + 眼 -->
-      <rect x="24" y="12" width="3.2" height="12" rx="1.6" fill="#B85A3C"/>
-      <rect x="42" y="12" width="3.2" height="12" rx="1.6" fill="#B85A3C"/>
-      <circle class="cd-eye" cx="25.6" cy="10" r="5" fill="#FFF" stroke="#B85A3C" stroke-width="1"/>
-      <circle class="cd-eye" cx="43.6" cy="10" r="5" fill="#FFF" stroke="#B85A3C" stroke-width="1"/>
-      <circle cx="25.6" cy="10" r="2.3" fill="#1B2433"/>
-      <circle cx="43.6" cy="10" r="2.3" fill="#1B2433"/>
-      <!-- 身体 -->
-      <ellipse cx="35" cy="40" rx="26" ry="17" fill="#C96A4B"/>
-      <ellipse cx="35" cy="36" rx="26" ry="14" fill="#D97757"/>
-      <ellipse cx="35" cy="32" rx="20" ry="8" fill="#E28C6E" opacity=".55"/>
-      <path d="M29 40 q6 5 12 0" stroke="#A44B30" stroke-width="2" fill="none" stroke-linecap="round"/>
-    </g></g>
-  </svg>
+    </svg>
+    <pre class="cd-sprite" id="cd-claw"><span class="cd-tail">▟█▙</span> ▐<span class="k">▛███▜</span>▌
+   <span>▝▜</span><span class="k">█████</span>▛▘
+     ▘▘ ▝▝</pre>
+  </div>
   <div class="say"><b>Claw'd</b> 正在重写这些地图。<br>数据换成 OSM 原始数据，渲染换成 MapLibre。</div>
 </div>
 <!-- CLAWD:END -->
 
 <div class="cards">
-  <a class="card quiz" href="quiz/japan-map-quiz.html">
+  <a class="card quiz" href="quiz/map.html">
     <span class="tag">学習</span>
     <h2>地図 · 学習</h2>
     <p>了解日本与东亚的地理和行政结构。</p>
     <ul>
-      <li>現代日本：浏览 · 答题 · 闯关</li>
-      <li>行政区下钻：都道府県 → 市町村 → 町丁目</li>
-      <li>東亜：浏览（OSM 原始数据，621 单元／27 国）</li>
+      <li>現代日本：浏览（47 都道府県 · 1741 市町村）</li>
+      <li class="wip">答题 · 闯关：地图验收通过后重做</li>
+      <li class="wip">行政区下钻：待并入</li>
+      <li>東亜：浏览（621 单元／27 国）</li>
       <li class="wip">大日本（1942）：需历史 GIS 数据，暂缓</li>
     </ul>
   </a>
@@ -185,10 +141,9 @@ footer{margin-top:34px;font-size:11.5px;color:var(--muted);max-width:680px;line-
 
 <div class="scaffold">
   <div class="h">迁移中的旧页面</div>
+  <a href="quiz/japan-map-quiz.html">旧・都道府県クイズ（功能待重做）</a>
   <a href="admin/japan_admin_map_v2.html">日本行政区分図</a>
   <a href="transit.html">大阪府 车站可达性図</a>
-  <a href="quiz/ml-proto.html">東亜 · MapLibre 原型</a>
-  <a href="quiz/gl-proto.html">東亜 · WebGL 原型</a>
 </div>
 
 <footer>
