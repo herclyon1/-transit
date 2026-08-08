@@ -1,29 +1,19 @@
 #!/bin/bash
 # 切矢量瓦片。
 #
-# 陷阱警告：tippecanoe 按缩放级别做的简化，跟当年 mapshaper `interval` 毁掉
-# 边界精度是同一类问题。`interval` 是面积阈值不是段长阈值，误解那一点把中蒙国界
-# 从 91m 削到了 1469m。这里的对策：
-#   1. --simplification 调小，高层级基本不简化
-#   2. --detect-shared-borders 让相邻多边形共用的边简化方式一致，避免出现缝
-#   3. 切完必须跑 verify_tiles.js 逐级量段长，不能切完就当完事
+# 陷阱：tippecanoe 按层级做的简化，和当年 mapshaper `interval` 毁掉边界精度是同一类问题。
+# 对策：--simplification 调小；--detect-shared-borders 让相邻多边形共用边简化一致，避免出缝；
+# 河流从 z5 起才画（低层级看不清，且分图层各自简化可能让边界与河流微微分叉）。
+# 切完必须逐级量段长验收，不能切完就当完事。
 set -eu
 cd /home/user/osm
-
 OUT=${1:-ea.pmtiles}
-
-tippecanoe -o "$OUT" -f \
-  -Z0 -z12 \
-  --detect-shared-borders \
-  --simplification=2 \
-  --drop-densest-as-needed \
-  --extend-zooms-if-still-dropping \
-  --no-tile-size-limit \
+tippecanoe -o "$OUT" -f -Z0 -z12 \
+  --detect-shared-borders --simplification=2 \
+  --drop-densest-as-needed --extend-zooms-if-still-dropping --no-tile-size-limit -q \
   -L units:units_osm.geojsonl \
-  -L water:water_osm.geojsonl \
-  -L rivers:rivers_osm.geojsonl
-
+  -L disp:disp_osm.geojsonl \
+  -L'{"file":"water_osm.geojsonl","layer":"water","minzoom":3}' \
+  -L'{"file":"rivers_osm.geojsonl","layer":"rivers","minzoom":5}'
 echo "TILES_DONE $(du -h "$OUT" | cut -f1)"
-echo
-echo "GitHub 单文件上限 100MB —— 超了就得砍图层或砍缩放级别，别硬传。"
-ls -l "$OUT" | awk '{ if ($5 > 100*1024*1024) print "  !! 超限:", $5, "字节"; else print "  体积 OK:", $5, "字节" }'
+ls -l "$OUT" | awk '{ if ($5 > 100*1024*1024) print "  !! 超过 GitHub 单文件 100MB 上限:", $5; else print "  体积 OK:", $5 }'
