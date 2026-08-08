@@ -50,19 +50,32 @@ const map = new maplibregl.Map({
       {id:"rivers", source:"riv", "source-layer":"rivers", type:"line", minzoom:5,
         paint:{"line-color":"#9dc2dd","line-opacity":["interpolate",["linear"],["zoom"],5,0.35,8,0.9],
                "line-width":["interpolate",["linear"],["zoom"],5,0.4,10,1.4]}},
-      // 争议/分歧范围: 虚线框 + 标注，填色仍按实际管理
+      // 选中高亮。旧版有，原型里漏了——用户报「点击反馈丢失」指的就是这个。
+      {id:"sel", source:"ea", "source-layer":"units", type:"line",
+        filter:["==",["get","n"],"\u0000"],
+        paint:{"line-color":"#1B2433","line-width":2.4}},
+      // 争议/分歧范围: 虚线框，填色仍按实际管理。
+      // 必须放在最上层且不可点击，否则会吃掉对填色层的点击。
       {id:"disp", source:"ea", "source-layer":"disp", type:"line",
-        paint:{"line-color":"#8a3f3f","line-width":1.2,"line-dasharray":[3,2]}}
+        paint:{"line-color":"#8a3f3f","line-width":1.6,"line-dasharray":[2,1.5],"line-opacity":0.9}}
     ]},
   center:[112,22], zoom:2.2
 });
 map.touchZoomRotate.disableRotation();
 window.__map = map;
 map.on("load",()=>{ document.getElementById("info").innerHTML="矢量瓦片 · GPU 渲染<br>按需取块，无需预先加载全部数据"; });
-map.on("click","fill",e=>{ const f=e.features&&e.features[0]; if(!f)return;
+map.on("click", e=>{
   const c=document.getElementById("card");
-  c.innerHTML='<div class="n">'+f.properties.n+'</div><div style="color:#6B7688">'+f.properties.grp+'</div>';
-  c.style.display="block"; });
+  const hit=map.queryRenderedFeatures(e.point,{layers:["fill"]})[0];
+  const d=map.queryRenderedFeatures(e.point,{layers:["disp"]})[0];
+  if(!hit){ map.setFilter("sel",["==",["get","n"],"\u0000"]); c.style.display="none"; return; }
+  map.setFilter("sel",["==",["get","n"],hit.properties.n]);
+  let html='<div class="n">'+hit.properties.n+'</div><div style="color:#6B7688">'+hit.properties.grp+'</div>';
+  if(d&&d.properties&&d.properties.note)
+    html+='<div style="margin-top:5px;padding-top:5px;border-top:1px dashed #c9a0a0;color:#8a3f3f;font-size:11.5px;line-height:1.45">'
+      +d.properties.dn+'：'+d.properties.note+'</div>';
+  c.innerHTML=html; c.style.display="block";
+});
 // 帧时统计
 let frames=[],last=performance.now();
 (function tick(){ const n=performance.now(); frames.push(n-last); last=n; if(frames.length>40)frames.shift();
