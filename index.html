@@ -28,6 +28,18 @@ a.card .wip{color:var(--muted)}
 footer{margin-top:34px;font-size:11.5px;color:var(--muted);max-width:680px;line-height:1.7}
 @media (max-width:480px){header h1{font-size:22px} a.card h2{font-size:17px}}
 
+/* ---------- Claw'd（Anthropic 官方素材，未经改动） ----------
+   clawd.svg              取自 https://claude.ai/images/clawd.svg
+   clawd-laptop.webm/.mov 取自 https://claude.com/images/install-hub/clawd-laptop.*
+   两个视频都是 2750x1850、带 alpha、12fps 43 帧。画面内容只占
+   x 736..2036 / y 850..1850，所以这里用一个 13:10 的窗口把有内容的
+   部分放大平移出来，文件本身一个字节都没动。 */
+.clawd{width:100%;max-width:680px;margin-top:30px;display:flex;align-items:flex-end;gap:16px}
+.clawd .stage{position:relative;width:130px;height:100px;overflow:hidden;flex:none}
+.clawd video{position:absolute;width:211.54%;height:185%;left:-56.62%;top:-85%;display:block}
+.clawd .say{font-size:12px;color:var(--muted);line-height:1.7;padding-bottom:6px}
+.clawd .say b{color:var(--soft);font-weight:700}
+
 </style>
 </head>
 <body>
@@ -43,10 +55,9 @@ footer{margin-top:34px;font-size:11.5px;color:var(--muted);max-width:680px;line-
     <h2>地図 · 学習</h2>
     <p>了解日本与东亚的地理和行政结构。</p>
     <ul>
-      <li>現代日本：浏览（47 都道府県 · 1741 市町村）</li>
+      <li>現代日本：47 都道府県 · 1741 市町村 · 232,009 町丁字（三级下钻）</li>
+      <li>東亜：621 单元／27 国</li>
       <li class="wip">答题 · 闯关：地图验收通过后重做</li>
-      <li class="wip">行政区下钻：待并入</li>
-      <li>東亜：浏览（621 单元／27 国）</li>
       <li class="wip">大日本（1942）：需历史 GIS 数据，暂缓</li>
     </ul>
   </a>
@@ -62,16 +73,23 @@ footer{margin-top:34px;font-size:11.5px;color:var(--muted);max-width:680px;line-
   </a>
 </div>
 
-<div class="scaffold">
-  <div class="h">迁移中的旧页面</div>
-  <a href="quiz/japan-map-quiz.html">旧・都道府県クイズ（功能待重做）</a>
-  <a href="admin/japan_admin_map_v2.html">日本行政区分図</a>
-  <a href="transit.html">大阪府 车站可达性図</a>
+<div class="clawd">
+  <div class="stage">
+    <video autoplay loop muted playsinline disablepictureinpicture
+           poster="clawd/clawd.svg" aria-label="Claw'd">
+      <source src="clawd/clawd-laptop.mov" type="video/quicktime">
+      <source src="clawd/clawd-laptop.webm" type="video/webm">
+      <img src="clawd/clawd.svg" alt="Claw'd" width="66" height="52">
+    </video>
+  </div>
+  <div class="say"><b>Claw'd</b>　Anthropic 官方素材，原文件未改动。<br>
+  静图 <code>clawd.svg</code>，动画 <code>clawd-laptop</code>（43 帧／12fps／带透明通道）。</div>
 </div>
 
 <footer>
 数据：OpenStreetMap（ODbL）· 国土数値情報 · 令和2年国勢調査 (e-Stat) ·
-歴史的行政区域データセットβ版（CODH）· OSM 陸地ポリゴン（osmdata.openstreetmap.de）
+歴史的行政区域データセットβ版（CODH）· OSM 陸地ポリゴン（osmdata.openstreetmap.de）<br>
+Claw'd 图像版权归 Anthropic 所有，此处仅作原样引用。
 </footer>
 </body>
 </html>
