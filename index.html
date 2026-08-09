@@ -34,17 +34,21 @@ footer{margin-top:34px;font-size:11.5px;color:var(--muted);max-width:680px;line-
    动画内容只占画布的 x 733..2437 / y 700..1850（约 61.9% x 62.2%），
    其余是透明留白，所以这里用一个窗口把有内容的那块放大平移出来，
    JSON 本身一个字节都没动。lottie_light 是官方页面同款播放器（MIT）。*/
-.clawd{width:100%;max-width:680px;margin:-2px 0 22px;display:flex;align-items:center;gap:14px}
-/* 取景框 = 全 43 帧内容的并集（源画布 2750x1850 里的 x 733..2437 / y 700..1850），
-   一帧都不裁，笔电伸最远、天线窜最高的那两帧也完整。
-   螃蟹站姿只占框的下半部（y 1050..1850），所以框心比蟹心高 15.2%——
-   靠 translateY 把整块往上挪这么多，让**螃蟹**跟右边文字视觉居中，
-   而不是让**框**居中。挪的是位置，不是裁剪。 */
-.clawd .stage{position:relative;width:126px;height:85px;overflow:hidden;flex:none;cursor:pointer;
-  transform:translateY(-15.2%);
+/* 取景框比螃蟹宽（左右各空 34px 是留给笔电和天线的），直接摆就显得空。
+   用负外边距把这段空白吃掉：左边吃满，让**螃蟹**的左缘跟正文左缘对齐；
+   右边只吃一部分，给笔电留出伸展余地，剩下的读起来就是正常字距。
+   吃掉的是空白，取景框本身没动，动画一帧都不会被裁。 */
+.clawd{width:100%;max-width:680px;margin:-2px 0 22px;display:flex;align-items:center;gap:6px}
+/* 取景框做成**以螃蟹为中心的对称框**，一帧都不裁。
+   静止站姿在源画布里是 x 733..1937 / y 1050..1850，蟹心 (1335,1450)；
+   全 43 帧的内容要伸到 x 2437（笔电最远）和 y 700（天线最高）。
+   以蟹心为中心、半径取到这两个极值，得到框 x 233..2437 / y 700..2200：
+   螃蟹正好落在框的正中，而笔电和天线仍然完整——空出来的部分是透明的，看不见。
+   之前用「内容并集」做框，框心比蟹心偏右上，静止时螃蟹就贴在左下角。 */
+.clawd .stage{position:relative;width:150px;height:102px;margin-left:-34px;margin-right:-18px;overflow:hidden;flex:none;cursor:pointer;
   -webkit-tap-highlight-color:transparent;outline:none;user-select:none;-webkit-user-select:none}
 .clawd .stage::-moz-focus-inner{border:0}
-.clawd .stage>div{position:absolute;width:161.38%;height:160.87%;left:-43.02%;top:-60.87%}
+.clawd .stage>div{position:absolute;width:124.77%;height:123.33%;left:-10.57%;top:-46.67%}
 .clawd .stage svg{display:block;pointer-events:none}
 .clawd .say{font-size:12.5px;color:var(--soft);line-height:1.65;padding-bottom:6px}
 .clawd .say .who{font-weight:700;color:var(--ink)}
