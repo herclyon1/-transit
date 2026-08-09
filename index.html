@@ -38,14 +38,16 @@ footer{margin-top:34px;font-size:11.5px;color:var(--muted);max-width:680px;line-
    拿它们撑取景框只会让静止时上下左右全是空。
    所以取景框收成正好裹住静止站姿（源画布 x 733..1937 / y 1050..1850），
    螃蟹就是这个框本身；再开 overflow:visible，笔电和天线照样画得出来、
-   一帧都不裁，只是画到框外面去。右边的 gap 留够笔电伸展的宽度，免得被文字压住。 */
-.clawd{width:100%;max-width:680px;margin:-2px 0 22px;display:flex;align-items:center;gap:38px}
-.clawd .stage{position:relative;width:84px;height:56px;overflow:visible;flex:none;cursor:pointer;
+   一帧都不裁，只是画到框外面去。右边的 gap 必须留够笔电伸展的宽度。实测全 43 帧里伸最远的是第 14 帧，
+   超出静止站姿右缘 500 源单位 = 34.9px，所以 gap 取 46px（余量 11px）。
+   上一版取 38px 只剩 3px 余量，用户设备上字体一宽就把笔电压住了。 */
+.clawd{width:100%;max-width:680px;margin:-2px 0 22px;display:flex;align-items:flex-end;gap:46px}
+.clawd .stage{position:relative;width:84px;height:56px;margin-bottom:4px;overflow:visible;flex:none;cursor:pointer;
   -webkit-tap-highlight-color:transparent;outline:none;user-select:none;-webkit-user-select:none}
 .clawd .stage::-moz-focus-inner{border:0}
 .clawd .stage>div{position:absolute;width:228.4%;height:231.25%;left:-60.88%;top:-131.25%}
 .clawd .stage svg{display:block;pointer-events:none}
-.clawd .say{font-size:12.5px;color:var(--soft);line-height:1.65;padding-bottom:6px}
+.clawd .say{font-size:12.5px;color:var(--soft);line-height:1.65}
 .clawd .say .who{font-weight:700;color:var(--ink)}
 .clawd .say .hint{color:var(--muted);font-size:11.5px}
 /* 播放器没加载出来时退回官方静图，不留空白 */

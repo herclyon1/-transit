@@ -81,16 +81,50 @@
 const REGIONS=["北海道","東北","関東","中部","近畿","中国","四国","九州・沖縄"];
 const RC=["#8FB8D8","#9BC4A6","#E2A07E","#E8C97C","#D4899B","#A9A7D6","#8FCBC4","#E0956E"];
 const RUS="#9C8AA5";   // 俄罗斯（北方四岛按实控填这个色）
-const EAC=["CHN","#e2806e","KOR","#9db8e0","PRK","#7d8fbd","VNM","#c96058","LAO","#b3b8e0","THA","#7d99cc",
- "KHM","#e3c495","MMR","#a8cf9f","MYS","#e8d48a","SGP","#e6a0a0","BRN","#cba96e","IDN","#e29184","TLS","#e5cf8f",
- "PNG","#d4a86a","PHL","#94aede","IND","#eeb27f","LKA","#c78d64","NPL","#b95f6e","BTN","#f0d75f","BGD","#97c9a2",
- "PLW","#a5cde3","FSM","#86a9d4","MHL","#b5d3ea","MNP","#93b0d9","TWN","#86c3a8","MNG","#b7d3a1","MDV","#8fb8d8"];
+// 東亜各国的填色取**各国国旗的代表色**，再统一压到地图可读的明度上
+// （原色直接铺满会太艳、压住标注；而且亚洲一堆红旗，不调就分不开邻国）。
+const EAC=[
+ "CHN","#DE6A5E",  // 中国：五星红旗 红
+ "JPN","#EFA9A9",  // 日本：日章旗 白地に赤
+ "KOR","#7BA3DE",  // 韓国：太極旗 青
+ "PRK","#5B7CBE",  // 朝鮮：青
+ "MNG","#C98A5E",  // モンゴル：赤＋ソヨンボ金
+ "TWN","#6FA0C8",  // 台湾：青天
+ "VNM","#E3C24F",  // ベトナム：金星（赤は中国と被るので星の金）
+ "LAO","#4E7FA8",  // ラオス：青
+ "KHM","#4C63A8",  // カンボジア：青
+ "THA","#B85A6E",  // タイ：赤白青のうち赤
+ "MMR","#7CB86A",  // ミャンマー：緑
+ "MYS","#D9A441",  // マレーシア：黄
+ "SGP","#E88A8A",  // シンガポール：赤
+ "BRN","#E8D45A",  // ブルネイ：黄
+ "IDN","#E87A70",  // インドネシア：赤
+ "TLS","#C9A24A",  // 東ティモール：黄
+ "PNG","#C7A25A",  // パプアニューギニア：金の極楽鳥
+ "PHL","#6C86C8",  // フィリピン：青
+ "IND","#E8A15C",  // インド：サフラン
+ "LKA","#B8873A",  // スリランカ：金のライオン
+ "NPL","#C05A72",  // ネパール：紅
+ "BTN","#E2A03C",  // ブータン：黄
+ "BGD","#3E9B78",  // バングラデシュ：緑
+ "PLW","#7BC4DE",  // パラオ：水色
+ "FSM","#8FC2E0",  // ミクロネシア：水色
+ "MHL","#D69A5A",  // マーシャル：橙
+ "MNP","#6BA8D4",  // 北マリアナ：青
+ "MDV","#4FA36F"   // モルディブ：緑
+];
 
 // 市区町村码 → 名。町丁那一级的「市町村」必须从**町丁自己带的 e-Stat 码**读，
 // 不能拿 OSM 的市界去命中——两份数据在飞地和市界上有 607 处分歧（全量比对过），
 // 用户点大阪府泉佐野市的飞地「大口新田」被标成泉南市就是这么来的。
 let MUNI_NAMES={};
-fetch("muni_names.json").then(r=>r.json()).then(j=>{MUNI_NAMES=j;}).catch(()=>{});
+fetch("muni_names.json").then(r=>r.json()).then(j=>{MUNI_NAMES=j;MUNI_CODES=buildRev(j);}).catch(()=>{});
+// 反查：pref|市町村名 → 该市町村名下的所有 CITY 码（政令市有多个区码）
+let MUNI_CODES={};
+const buildRev=j=>{const r={};
+  for(const code in j){const pref=+code.slice(0,2), city=code.slice(2);
+    const k=pref+"|"+j[code]; (r[k]=r[k]||[]).push([pref,city]);}
+  return r;};
 const muniOf=p=>{
   if(!p||p.pref==null||p.city==null) return null;
   const code=String(p.pref).padStart(2,"0")+String(p.city).padStart(3,"0");
@@ -144,7 +178,7 @@ const map=new maplibregl.Map({
       // 東亜的 621 单元覆盖 27 个国家/地区，里头**没有日本**，所以切到東亜时
       // 日本整个是个窟窿（只剩水体）。直接复用現代日本那份几何按国别上色补上。
       {id:"ea-jp-fill",source:"jp","source-layer":"pref",type:"fill",layout:{visibility:"none"},
-        paint:{"fill-color":"#d9a86e"}},
+        paint:{"fill-color":EAC[EAC.indexOf("JPN")+1]}},
       {id:"ea-jp-disp",source:"jp","source-layer":"disp",type:"fill",layout:{visibility:"none"},
         paint:{"fill-color":RUS,"fill-opacity":0.9}},
       {id:"ea-jp-sel",source:"jp","source-layer":"pref",type:"line",layout:{visibility:"none"},
@@ -210,6 +244,14 @@ const map=new maplibregl.Map({
       {id:"jp-sel",source:"jp","source-layer":"pref",type:"line",
         filter:["==",["get","code"],-1],paint:{"line-color":"#12263A","line-width":3.2}},
       // 选中高亮：跟着点到的最细一级走，三层各一条
+      {id:"jp-selmA",source:"choA","source-layer":"cho",type:"fill",minzoom:11,
+        filter:["==",["get","n"],"\u0000"],paint:{"fill-color":"#1F7A5A","fill-opacity":0.18}},
+      {id:"jp-selmB",source:"choB","source-layer":"cho",type:"fill",minzoom:11,
+        filter:["==",["get","n"],"\u0000"],paint:{"fill-color":"#1F7A5A","fill-opacity":0.18}},
+      {id:"jp-selmC",source:"choC","source-layer":"cho",type:"fill",minzoom:11,
+        filter:["==",["get","n"],"\u0000"],paint:{"fill-color":"#1F7A5A","fill-opacity":0.18}},
+      {id:"jp-selmD",source:"choD","source-layer":"cho",type:"fill",minzoom:11,
+        filter:["==",["get","n"],"\u0000"],paint:{"fill-color":"#1F7A5A","fill-opacity":0.18}},
       {id:"jp-selm",source:"jp","source-layer":"muni",type:"line",
         filter:["==",["get","n"],"\u0000"],paint:{"line-color":"#1F7A5A","line-width":2.6}},
       {id:"jp-selk",source:"jp","source-layer":"ku",type:"line",
@@ -269,6 +311,7 @@ const map=new maplibregl.Map({
         paint:{"circle-radius":["interpolate",["linear"],["zoom"],9,2.2,12,2.6,15,4.2],
                "circle-color":"#fff","circle-stroke-color":"#37474F",
                "circle-stroke-width":["interpolate",["linear"],["zoom"],9,1,15,1.4]}},
+      // 交通标注排在行政标注前面：避让时先给駅名/空港名占位
       {id:"tr-air-lab",source:"tr","source-layer":"air",type:"symbol",minzoom:6,layout:{visibility:"none",
           "text-field":["get","n"],"text-font":["NotoSansJP Regular"],
           "text-size":["interpolate",["linear"],["zoom"],6,9.5,11,13],"text-optional":true,
@@ -302,14 +345,19 @@ const map=new maplibregl.Map({
         layout:{"text-field":["get","n"],"text-font":["NotoSansJP Regular"],
           "text-size":["interpolate",["linear"],["zoom"],10,10,13,13.5],"text-padding":1,
           "text-variable-anchor":["center","top","bottom"],"text-radial-offset":0.3},
-        paint:{"text-color":"#4a4152","text-halo-color":"#fff","text-halo-width":1.4}},
+        paint:{"text-color":"#4a4152","text-halo-color":"#fff","text-halo-width":1.4,
+          "text-opacity":["interpolate",["linear"],["zoom"],13.5,1,14.5,0.5]}},
       // 町丁名：z13 起。23 万个点，靠 MapLibre 自己的避让决定画哪些。
+      // 町丁名放在**駅名之后**，这样 MapLibre 避让时駅名先占位、町丁名让位。
+      // 开交通时町丁名还要再推迟一级（z14 起），否则一屏几百个町丁名把站名淹掉——
+      // 用户实测截图里就是这个样子。
       {id:"jp-lab-cho",source:"chol","source-layer":"cholab",type:"symbol",minzoom:13,
         layout:{"text-field":["get","n"],"text-font":["NotoSansJP Regular"],
-          "text-size":["interpolate",["linear"],["zoom"],13,9.5,15,12],"text-padding":1,
+          "text-size":["interpolate",["linear"],["zoom"],13,9.5,15,11.5],"text-padding":3,
           "text-optional":true,"text-variable-anchor":["center","top","bottom","left","right"],
           "text-radial-offset":0.35},
-        paint:{"text-color":"#55606D","text-halo-color":"#fff","text-halo-width":1.3}},
+        paint:{"text-color":"#5D6874","text-halo-color":"#fff","text-halo-width":1.25,
+          "text-opacity":["interpolate",["linear"],["zoom"],13,0.85,14.5,1]}},
       // 争议/分歧范围的说明文字 —— 之前只有虚线看不懂，这条补上
       {id:"jp-lab-disp",source:"jp","source-layer":"displab",type:"symbol",
         layout:{"text-field":["concat",["get","dn"],"\n",["get","note"]],
@@ -318,6 +366,10 @@ const map=new maplibregl.Map({
         paint:{"text-color":"#8a3f3f","text-halo-color":"#fff","text-halo-width":1.6}},
 
       {id:"ea-lab",source:"ea","source-layer":"unitlab",type:"symbol",layout:{visibility:"none",
+          "text-field":["get","n"],"text-font":["NotoSansJP Regular"],
+          "text-size":["interpolate",["linear"],["zoom"],2,9,7,14],"text-padding":2},
+        paint:{"text-color":"#243040","text-halo-color":"#fff","text-halo-width":1.4}},
+      {id:"ea-jp-lab",source:"jp","source-layer":"preflab",type:"symbol",layout:{visibility:"none",
           "text-field":["get","n"],"text-font":["NotoSansJP Regular"],
           "text-size":["interpolate",["linear"],["zoom"],2,9,7,14],"text-padding":2},
         paint:{"text-color":"#243040","text-halo-color":"#fff","text-halo-width":1.4}},
@@ -333,10 +385,10 @@ map.touchZoomRotate.disableRotation();
 window.__map=map;
 
 const JP=["jp-fill","jp-cho-fillA","jp-choA","jp-cho-fillB","jp-choB","jp-cho-fillC","jp-choC","jp-cho-fillD","jp-choD",
-  "jp-muni-fill","jp-muni","jp-ku-fill","jp-ku","jp-line","jp-sel","jp-selm","jp-selk",
+  "jp-muni-fill","jp-muni","jp-ku-fill","jp-ku","jp-line","jp-sel","jp-selmA","jp-selmB","jp-selmC","jp-selmD","jp-selm","jp-selk",
   "jp-selcA","jp-selcB","jp-selcC","jp-selcD","jp-disp-fill","jp-disp",
   "jp-lab","jp-lab-muni","jp-lab-ku","jp-lab-cho","jp-lab-disp"];
-const EA=["ea-fill","ea-jp-fill","ea-jp-disp","ea-jp-sel","ea-jp-line","ea-water","ea-riv","ea-line","ea-sel","ea-disp","ea-lab","ea-lab-disp"];
+const EA=["ea-fill","ea-jp-fill","ea-jp-disp","ea-jp-sel","ea-jp-line","ea-jp-lab","ea-water","ea-riv","ea-line","ea-sel","ea-disp","ea-lab","ea-lab-disp"];
 let region="jp";
 
 function setRegion(r){
@@ -377,6 +429,8 @@ const TRLEG=[["#0B4F8A","新幹線"],["#2E7D32","JR在来線"],["#C2410C","地�
              ["#00838F","第三セクター"],["#8D6E63","軌道・モノレール・新交通"],["#5B4B8A","空港"],["#3E7CB1","定期旅客航路"]];
 function setTransit(on){
   transit=on;
+  // 开交通时町丁名推迟一级，避免几百个町丁名把站名淹掉
+  map.setLayerZoomRange("jp-lab-cho", on?14:13, 24);
   TR.forEach(id=>map.setLayoutProperty(id,"visibility",(on&&region==="jp")?"visible":"none"));
   document.getElementById("b-tr").classList.toggle("on",on);
   if(legOpen) drawLegend();
@@ -432,7 +486,7 @@ map.on("click",e=>{
   const hitLayers = region==="jp" ? [fillId] : [fillId,"ea-jp-fill"];
   const hit=map.queryRenderedFeatures(e.point,{layers:hitLayers})[0];
   if(!hit){ map.setFilter(selId, region==="jp"?["==",["get","code"],-1]:["==",["get","n"],"\u0000"]);
-            if(region==="jp") ["jp-selm","jp-selk","jp-selcA","jp-selcB","jp-selcC","jp-selcD"].forEach(id=>map.setFilter(id,["==",["get","n"],"\u0000"]));
+            if(region==="jp") ["jp-selm","jp-selk","jp-selmA","jp-selmB","jp-selmC","jp-selmD","jp-selcA","jp-selcB","jp-selcC","jp-selcD"].forEach(id=>map.setFilter(id,["==",["get","n"],"\u0000"]));
             else map.setFilter("ea-jp-sel",["==",["get","code"],-1]);
             c.style.display="none"; c.classList.remove("on"); document.body.classList.remove("carded");
             document.getElementById("hint").style.display=""; return; }
@@ -450,11 +504,19 @@ map.on("click",e=>{
     const chName = (ch&&ch.properties&&ch.properties.n) ? ch.properties.n : "\u0000";
     ["jp-selcA","jp-selcB","jp-selcC","jp-selcD"].forEach(id=>map.setFilter(id,["==",["get","n"],chName]));
     map.setFilter("jp-selk", ku ? ["==",["get","n"],ku.properties.n] : ["==",["get","n"],"\u0000"]);
-    // 高亮也必须跟着「正确的市」走。之前这里用的是 OSM 命中出来的 mu，
-    // 于是点泉佐野市的飞地「大口新田」时，卡片写对了、框却还框在泉南市上。
-    const selPref = (mu&&mu.properties&&mu.properties.pref) != null ? mu.properties.pref
-                  : (ch&&ch.properties&&ch.properties.pref);
-    map.setFilter("jp-selm", muName
+    // 市町村的高亮：**用町丁自己的码去圈**，而不是拿 OSM 的市界描边。
+    // 两份数据在 607 处不一致，OSM 的泉佐野市里根本不含飞地「大口新田」，
+    // 拿它描边永远框不住——这不是显示 bug，是两层用了两个来源。
+    // 按码集合给同一市町村的所有町丁铺一层底色，飞地自然就包进去了。
+    const selPref = (ch&&ch.properties&&ch.properties.pref) != null ? ch.properties.pref
+                  : (mu&&mu.properties&&mu.properties.pref);
+    const codes = muName ? (MUNI_CODES[selPref+"|"+muName]||[]) : [];
+    const muFilter = codes.length
+      ? ["any",...codes.map(([pf,ct])=>["all",["==",["get","pref"],pf],["==",["get","city"],ct]])]
+      : ["==",["get","n"],"\u0000"];
+    ["jp-selmA","jp-selmB","jp-selmC","jp-selmD"].forEach(id=>map.setFilter(id,muFilter));
+    // z<11 没有町丁时，退回用 OSM 市界描边
+    map.setFilter("jp-selm", (muName && !ch)
       ? ["all",["==",["get","n"],muName],["==",["get","pref"],selPref]]
       : ["==",["get","n"],"\u0000"]);
     html=`<div class="n">${p.n}</div><div class="sub">県庁：${p.cap}　地方：${p.regn}</div>`;
