@@ -80,42 +80,43 @@
 <script>
 const REGIONS=["北海道","東北","関東","中部","近畿","中国","四国","九州・沖縄"];
 const RC=["#8FB8D8","#9BC4A6","#E2A07E","#E8C97C","#D4899B","#A9A7D6","#8FCBC4","#E0956E"];
-const RUS="#223C7E";   // ロシア：白青赤の三色旗 → 旗の青。北方四岛按实控填这个色。
-// ★ 固定规则（不得更改）：東亜各国的填色一律取**该国国旗的代表色**。
-//   不许换成随机配色、不许按分组配色。改动前先读 pipeline/README.md 的「東亜配色」一节。
-//   实现上取国旗主色后统一压到地图可读的明度——原色直接铺满会太艳、压住标注；
-//   而且亚洲一堆红旗，不调就分不开邻国（越南取国旗上的金星色而非红底，就是为此）。
-//   凡是改过这张表，必须重跑 pipeline/check_palette.py：
-//   它会检查 44 对真正接壤的邻国，色差 ΔE(CIE76) 必须 ≥15，否则地图上会看混。
+const RUS="#6E8CCF";   // ロシア：国家代表色 blue（Wikipedia National colours）
+// ★ 用户定的规则：東亜各国的填色按**各国的代表色**。
+//   色源取自**外部权威来源**：Wikipedia「National colours」——各国自己声明的国家代表色
+//   （多数有法源或奥委会/体育协会依据）。条目里没有的 4 个太平洋国家/地区退回国旗主色。
+//   25 国里 13 个自报「红」，所以还要一条让步规则：**冲突时国土面积小的一方**
+//   先换明度、再退到它自己声明的**第二色**——这样在地图上占最大面积的国家保住第一代表色
+//   （中国 = 红）。生成器 pipeline/mkpal2.py，色源解析 pipeline/natcol.py。
+//   改完必须跑 pipeline/check_palette.py：52 对接壤（含隔海相望）ΔE(CIE76) 全 ≥15。
 const EAC=[
- "CHN","#DE6A5E",  // 中国：五星红旗 红
- "JPN","#EFA9A9",  // 日本：日章旗 白地に赤
- "KOR","#9DBBEA",  // 韓国：太極旗 青
- "PRK","#4E6FB0",  // 朝鮮：紅地に青帯 → 青（赤は中国が使うため。ロシアの旗青と明度で分ける）
- "MNG","#C98A5E",  // モンゴル：赤＋ソヨンボ金
- "TWN","#6FA0C8",  // 台湾：青天
- "VNM","#E3C24F",  // ベトナム：金星（赤は中国と被るので星の金）
- "LAO","#4E7FA8",  // ラオス：青
- "KHM","#4C63A8",  // カンボジア：青
- "THA","#B85A6E",  // タイ：赤白青のうち赤
- "MMR","#7CB86A",  // ミャンマー：緑
- "MYS","#D9A441",  // マレーシア：黄
- "SGP","#E88A8A",  // シンガポール：赤
- "BRN","#E8D45A",  // ブルネイ：黄
- "IDN","#E87A70",  // インドネシア：赤
- "TLS","#C9A24A",  // 東ティモール：黄
- "PNG","#C7A25A",  // パプアニューギニア：金の極楽鳥
- "PHL","#6C86C8",  // フィリピン：青
- "IND","#E8A15C",  // インド：サフラン
- "LKA","#A85A50",  // スリランカ：えんじ地に金獅子 → えんじ（金だとインドと近すぎる）
- "NPL","#C05A72",  // ネパール：紅
- "BTN","#F2C63C",  // ブータン：黄と橙の対角 → 黄（インドのサフランと分けるため明るく）
- "BGD","#3E9B78",  // バングラデシュ：緑
- "PLW","#6FB8D8",  // パラオ：水色地に黄の満月 → 水色（濃いめ、ミクロネシアと分けるため）
- "FSM","#B0D2EC",  // ミクロネシア：水色に四つ星 → 水色（淡いめ）
- "MHL","#D69A5A",  // マーシャル：橙
- "MNP","#6BA8D4",  // 北マリアナ：青
- "MDV","#4FA36F"   // モルディブ：緑
+ "CHN","#CF6E6E",  // 中国：国家代表色 red
+ "JPN","#D69AA7",  // 日本：国家代表色 red
+ "KOR","#4573C9",  // 韓国：国家代表色 red
+ "PRK","#8EA2C7",  // 朝鮮：国家代表色 red
+ "MNG","#6EA5CF",  // モンゴル：国家代表色 blue
+ "TWN","#6B88BD",  // 台湾：国家代表色 blue
+ "VNM","#CFCF6E",  // ベトナム：国家代表色 yellow
+ "LAO","#C94554",  // ラオス：国家代表色 red
+ "KHM","#9AAFD6",  // カンボジア：国家代表色 red
+ "THA","#CF6E7E",  // タイ：国家代表色 red
+ "MMR","#CFBB6E",  // ミャンマー：国家代表色 yellow
+ "MYS","#C9AF45",  // マレーシア：国家代表色 gold
+ "SGP","#CF6E76",  // シンガポール：国家代表色 red
+ "BRN","#D6CF9A",  // ブルネイ：国家代表色 yellow
+ "IDN","#C94545",  // インドネシア：国家代表色 red
+ "TLS","#D69E9A",  // 東ティモール：国家代表色 red
+ "PNG","#D69AA1",  // パプアニューギニア：国家代表色 red
+ "PHL","#BBC6DD",  // フィリピン：国家代表色 blue
+ "IND","#CF8D6E",  // インド：国家代表色 saffron
+ "LKA","#9AABD6",  // スリランカ：国家代表色 blue
+ "NPL","#C94562",  // ネパール：国家代表色 crimson
+ "BTN","#D6AE9A",  // ブータン：国家代表色 orange
+ "BGD","#CF6E79",  // バングラデシュ：国家代表色 red
+ "PLW","#D6D69A",  // パラオ：条目に記載なし → 国旗主色
+ "FSM","#6EA8CF",  // ミクロネシア：条目に記載なし → 国旗主色
+ "MHL","#6B86BD",  // マーシャル：条目に記載なし → 国旗主色
+ "MNP","#4571C9",  // 北マリアナ：条目に記載なし → 国旗主色
+ "MDV","#C9455E",  // モルディブ：国家代表色 red
 ];
 
 // 市区町村码 → 名。町丁那一级的「市町村」必须从**町丁自己带的 e-Stat 码**读，
@@ -214,15 +215,19 @@ const map=new maplibregl.Map({
       // 这就是之前"只有最外面那层点得动"的原因。
       {id:"jp-muni-fill",source:"jp","source-layer":"muni",type:"fill",minzoom:6,
         paint:{"fill-color":"#fff","fill-opacity":0.001}},
-      {id:"jp-muni",source:"jp","source-layer":"muni",type:"line",minzoom:6,
+      {id:"jp-muni",source:"jp","source-layer":"muni",type:"line",minzoom:6,maxzoom:14,
         paint:{"line-color":"#45525F","line-width":["interpolate",["linear"],["zoom"],6,.35,9,.8,12,1.2],
-               "line-opacity":["interpolate",["linear"],["zoom"],6,.45,8,.85]}},
+               // z13 起淡出：市界来自 OSM、町丁界来自 e-Stat，两者在飞地和市界处
+               // 有 607 处不一致，放大后并排画就会明显错开（用户在南中樫井一带看到）。
+               // 到了这一级町丁界已经全画出来，市町村范围靠选中底色表达，
+               // 屏幕上只留一个来源的边界，就不会自相矛盾。
+               "line-opacity":["interpolate",["linear"],["zoom"],6,.45,8,.85,12.8,.85,13.8,0]}},
       // 政令指定都市の行政区（171 个，OSM 现行版；浜松市 2024 年由 7 区并为 3 区）
       {id:"jp-ku-fill",source:"jp","source-layer":"ku",type:"fill",minzoom:8,
         paint:{"fill-color":"#fff","fill-opacity":0.001}},
-      {id:"jp-ku",source:"jp","source-layer":"ku",type:"line",minzoom:8,
+      {id:"jp-ku",source:"jp","source-layer":"ku",type:"line",minzoom:8,maxzoom:14,
         paint:{"line-color":"#5A5560","line-width":["interpolate",["linear"],["zoom"],8,.4,12,1.0],
-               "line-opacity":["interpolate",["linear"],["zoom"],8,.5,10,.9],
+               "line-opacity":["interpolate",["linear"],["zoom"],8,.5,10,.9,12.8,.9,13.8,0],
                "line-dasharray":[3,1.5]}},
       // 町丁・字等（令和2年国勢調査 小地域，232,009 个，47 县齐全）
       // OSM 同级只有 4,462 个且缺 14 个县，不可用，故这一级不走 OSM。
@@ -516,8 +521,15 @@ map.on("click",e=>{
     const ch=map.queryRenderedFeatures(e.point,{layers:["jp-cho-fillA","jp-cho-fillB","jp-cho-fillC","jp-cho-fillD"]})[0];
     // 高亮跟着当前能看到的最细一级走，而不是永远框住整个県
     const muName = (ch&&muniOf(ch.properties)) || (mu&&mu.properties&&mu.properties.n) || null;
+    // 町丁选中：只按名字过滤会把**全国同名的町丁**全点亮（用户截图里「新家」亮了三处）。
+    // 必须连 pref+city 一起比。同一个市町村里同名的町丁本来就可能不连续
+    //（e-Stat 按调查区切），那种是真的，应该一起亮。
     const chName = (ch&&ch.properties&&ch.properties.n) ? ch.properties.n : "\u0000";
-    ["jp-selcA","jp-selcB","jp-selcC","jp-selcD"].forEach(id=>map.setFilter(id,["==",["get","n"],chName]));
+    const chPref = ch&&ch.properties ? ch.properties.pref : null;
+    const chCity = ch&&ch.properties ? ch.properties.city : null;
+    const chFilter = chName==="\u0000" ? ["==",["get","n"],"\u0000"]
+      : ["all",["==",["get","n"],chName],["==",["get","pref"],chPref],["==",["get","city"],chCity]];
+    ["jp-selcA","jp-selcB","jp-selcC","jp-selcD"].forEach(id=>map.setFilter(id,chFilter));
     map.setFilter("jp-selk", ku ? ["==",["get","n"],ku.properties.n] : ["==",["get","n"],"\u0000"]);
     // 市町村的高亮：**用町丁自己的码去圈**，而不是拿 OSM 的市界描边。
     // 两份数据在 607 处不一致，OSM 的泉佐野市里根本不含飞地「大口新田」，
