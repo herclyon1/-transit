@@ -80,14 +80,18 @@
 <script>
 const REGIONS=["北海道","東北","関東","中部","近畿","中国","四国","九州・沖縄"];
 const RC=["#8FB8D8","#9BC4A6","#E2A07E","#E8C97C","#D4899B","#A9A7D6","#8FCBC4","#E0956E"];
-const RUS="#9C8AA5";   // 俄罗斯（北方四岛按实控填这个色）
-// 東亜各国的填色取**各国国旗的代表色**，再统一压到地图可读的明度上
-// （原色直接铺满会太艳、压住标注；而且亚洲一堆红旗，不调就分不开邻国）。
+const RUS="#223C7E";   // ロシア：白青赤の三色旗 → 旗の青。北方四岛按实控填这个色。
+// ★ 固定规则（不得更改）：東亜各国的填色一律取**该国国旗的代表色**。
+//   不许换成随机配色、不许按分组配色。改动前先读 pipeline/README.md 的「東亜配色」一节。
+//   实现上取国旗主色后统一压到地图可读的明度——原色直接铺满会太艳、压住标注；
+//   而且亚洲一堆红旗，不调就分不开邻国（越南取国旗上的金星色而非红底，就是为此）。
+//   凡是改过这张表，必须重跑 pipeline/check_palette.py：
+//   它会检查 44 对真正接壤的邻国，色差 ΔE(CIE76) 必须 ≥15，否则地图上会看混。
 const EAC=[
  "CHN","#DE6A5E",  // 中国：五星红旗 红
  "JPN","#EFA9A9",  // 日本：日章旗 白地に赤
- "KOR","#7BA3DE",  // 韓国：太極旗 青
- "PRK","#5B7CBE",  // 朝鮮：青
+ "KOR","#9DBBEA",  // 韓国：太極旗 青
+ "PRK","#4E6FB0",  // 朝鮮：紅地に青帯 → 青（赤は中国が使うため。ロシアの旗青と明度で分ける）
  "MNG","#C98A5E",  // モンゴル：赤＋ソヨンボ金
  "TWN","#6FA0C8",  // 台湾：青天
  "VNM","#E3C24F",  // ベトナム：金星（赤は中国と被るので星の金）
@@ -103,12 +107,12 @@ const EAC=[
  "PNG","#C7A25A",  // パプアニューギニア：金の極楽鳥
  "PHL","#6C86C8",  // フィリピン：青
  "IND","#E8A15C",  // インド：サフラン
- "LKA","#B8873A",  // スリランカ：金のライオン
+ "LKA","#A85A50",  // スリランカ：えんじ地に金獅子 → えんじ（金だとインドと近すぎる）
  "NPL","#C05A72",  // ネパール：紅
- "BTN","#E2A03C",  // ブータン：黄
+ "BTN","#F2C63C",  // ブータン：黄と橙の対角 → 黄（インドのサフランと分けるため明るく）
  "BGD","#3E9B78",  // バングラデシュ：緑
- "PLW","#7BC4DE",  // パラオ：水色
- "FSM","#8FC2E0",  // ミクロネシア：水色
+ "PLW","#6FB8D8",  // パラオ：水色地に黄の満月 → 水色（濃いめ、ミクロネシアと分けるため）
+ "FSM","#B0D2EC",  // ミクロネシア：水色に四つ星 → 水色（淡いめ）
  "MHL","#D69A5A",  // マーシャル：橙
  "MNP","#6BA8D4",  // 北マリアナ：青
  "MDV","#4FA36F"   // モルディブ：緑
@@ -179,6 +183,13 @@ const map=new maplibregl.Map({
       // 日本整个是个窟窿（只剩水体）。直接复用現代日本那份几何按国别上色补上。
       {id:"ea-jp-fill",source:"jp","source-layer":"pref",type:"fill",layout:{visibility:"none"},
         paint:{"fill-color":EAC[EAC.indexOf("JPN")+1]}},
+      // 樺太（サハリン）と千島列島。どちらもロシア実効支配なので旗青で塗る。
+      // 北方四島は disp 層で別に描いているので、ここからは差し引いてある
+      //（同じ土地を二度描かない——README の赤線）。
+      {id:"ea-rus",source:"jp","source-layer":"rus",type:"fill",layout:{visibility:"none"},
+        paint:{"fill-color":RUS,"fill-opacity":0.9}},
+      {id:"ea-rus-line",source:"jp","source-layer":"rus",type:"line",layout:{visibility:"none"},
+        paint:{"line-color":"#5f5348","line-width":["interpolate",["linear"],["zoom"],2,.4,10,.9]}},
       {id:"ea-jp-disp",source:"jp","source-layer":"disp",type:"fill",layout:{visibility:"none"},
         paint:{"fill-color":RUS,"fill-opacity":0.9}},
       {id:"ea-jp-sel",source:"jp","source-layer":"pref",type:"line",layout:{visibility:"none"},
@@ -369,6 +380,10 @@ const map=new maplibregl.Map({
           "text-field":["get","n"],"text-font":["NotoSansJP Regular"],
           "text-size":["interpolate",["linear"],["zoom"],2,9,7,14],"text-padding":2},
         paint:{"text-color":"#243040","text-halo-color":"#fff","text-halo-width":1.4}},
+      {id:"ea-rus-lab",source:"jp","source-layer":"ruslab",type:"symbol",layout:{visibility:"none",
+          "text-field":["get","n"],"text-font":["NotoSansJP Regular"],
+          "text-size":["interpolate",["linear"],["zoom"],2,9,7,14],"text-padding":2},
+        paint:{"text-color":"#F4F6FA","text-halo-color":"#223C7E","text-halo-width":1.4}},
       {id:"ea-jp-lab",source:"jp","source-layer":"preflab",type:"symbol",layout:{visibility:"none",
           "text-field":["get","n"],"text-font":["NotoSansJP Regular"],
           "text-size":["interpolate",["linear"],["zoom"],2,9,7,14],"text-padding":2},
@@ -388,7 +403,7 @@ const JP=["jp-fill","jp-cho-fillA","jp-choA","jp-cho-fillB","jp-choB","jp-cho-fi
   "jp-muni-fill","jp-muni","jp-ku-fill","jp-ku","jp-line","jp-sel","jp-selmA","jp-selmB","jp-selmC","jp-selmD","jp-selm","jp-selk",
   "jp-selcA","jp-selcB","jp-selcC","jp-selcD","jp-disp-fill","jp-disp",
   "jp-lab","jp-lab-muni","jp-lab-ku","jp-lab-cho","jp-lab-disp"];
-const EA=["ea-fill","ea-jp-fill","ea-jp-disp","ea-jp-sel","ea-jp-line","ea-jp-lab","ea-water","ea-riv","ea-line","ea-sel","ea-disp","ea-lab","ea-lab-disp"];
+const EA=["ea-fill","ea-rus","ea-rus-line","ea-jp-fill","ea-jp-disp","ea-jp-sel","ea-jp-line","ea-jp-lab","ea-rus-lab","ea-water","ea-riv","ea-line","ea-sel","ea-disp","ea-lab","ea-lab-disp"];
 let region="jp";
 
 function setRegion(r){
@@ -483,7 +498,7 @@ map.on("click",e=>{
   const selId =region==="jp"?"jp-sel" :"ea-sel";
   const dispId=region==="jp"?"jp-disp":"ea-disp";
   // 東亜视图里日本是用現代日本那份几何补上的，命中层不一样，得一起查
-  const hitLayers = region==="jp" ? [fillId] : [fillId,"ea-jp-fill"];
+  const hitLayers = region==="jp" ? [fillId] : [fillId,"ea-jp-fill","ea-rus"];
   const hit=map.queryRenderedFeatures(e.point,{layers:hitLayers})[0];
   if(!hit){ map.setFilter(selId, region==="jp"?["==",["get","code"],-1]:["==",["get","n"],"\u0000"]);
             if(region==="jp") ["jp-selm","jp-selk","jp-selmA","jp-selmB","jp-selmC","jp-selmD","jp-selcA","jp-selcB","jp-selcC","jp-selcD"].forEach(id=>map.setFilter(id,["==",["get","n"],"\u0000"]));
@@ -537,6 +552,10 @@ map.on("click",e=>{
     const dd=map.queryRenderedFeatures(e.point,{layers:["jp-disp-fill"]})[0];
     if(dd&&dd.properties&&dd.properties.dn)
       html+=`<div class="sub" style="color:#8a3f3f">${dd.properties.dn}：${dd.properties.note}</div>`;
+  }else if(p.de_facto==="RUS"){
+    map.setFilter(selId,["==",["get","n"],"\u0000"]);
+    map.setFilter("ea-jp-sel",["==",["get","code"],-1]);
+    html=`<div class="n">${p.n}</div><div class="sub">${p.note||""}</div>`;
   }else if(p.grp!==undefined){
     map.setFilter(selId,["==",["get","n"],p.n]);
     html=`<div class="n">${p.n}</div><div class="sub">${p.grp}</div>`;
