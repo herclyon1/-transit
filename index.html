@@ -8,7 +8,10 @@
 :root{--ink:#1B2433;--soft:#33415C;--paper:#E9EDF0;--panel:#FFF;--line:#C9D2DB;--accent:#B3541E;--hover:#2E6E8E;--muted:#6B7688;}
 *{margin:0;padding:0;box-sizing:border-box}
 body{font-family:'Noto Sans JP','Hiragino Sans','Microsoft YaHei',system-ui,sans-serif;background:var(--paper);color:var(--ink);min-height:100vh;display:flex;flex-direction:column;align-items:center;padding:32px 16px}
-header{width:100%;max-width:680px;margin-bottom:26px}
+header{width:100%;max-width:680px;
+  /* 螃蟹蹲在第一张卡片的上沿，站姿 36px、掏笔电那两帧天线还要再往上 15.7px，
+     所以标题到卡片之间必须留出 52px 以上，否则会撞到「地図ツール」。 */
+  margin-bottom:60px}
 header .kicker{font-size:12px;font-weight:700;letter-spacing:.22em;color:var(--muted);margin-bottom:6px}
 header h1{font-size:28px;font-weight:900}
 header .note{font-size:12.5px;color:var(--muted);margin-top:8px;line-height:1.6}
@@ -34,24 +37,22 @@ footer{margin-top:34px;font-size:11.5px;color:var(--muted);max-width:680px;line-
    动画内容只占画布的 x 733..2437 / y 700..1850（约 61.9% x 62.2%），
    其余是透明留白，所以这里用一个窗口把有内容的那块放大平移出来，
    JSON 本身一个字节都没动。lottie_light 是官方页面同款播放器（MIT）。*/
-/* 只按**静止帧**对齐——笔电和天线各自只出现一两帧，人眼看不出偏没偏，
-   拿它们撑取景框只会让静止时上下左右全是空。
-   所以取景框收成正好裹住静止站姿（源画布 x 733..1937 / y 1050..1850），
-   螃蟹就是这个框本身；再开 overflow:visible，笔电和天线照样画得出来、
-   一帧都不裁，只是画到框外面去。右边的 gap 必须留够笔电伸展的宽度。实测全 43 帧里伸最远的是第 14 帧，
-   超出静止站姿右缘 500 源单位 = 34.9px，所以 gap 取 46px（余量 11px）。
-   上一版取 38px 只剩 3px 余量，用户设备上字体一宽就把笔电压住了。 */
-.clawd{width:100%;max-width:680px;margin:-2px 0 22px;display:flex;align-items:flex-end;gap:46px}
-.clawd .stage{position:relative;width:84px;height:56px;margin-bottom:4px;overflow:visible;flex:none;cursor:pointer;
+/* 只按**静止帧**对齐——笔电和天线各自只出现一两帧，人眼看不出偏没偏。
+   取景框收成正好裹住静止站姿（源画布 x 733..1937 / y 1050..1850），螃蟹就是这个框本身；
+   再开 overflow:visible，笔电和天线照样完整画出来，只是画到框外去，一帧都不裁。
+
+   摆位：小小一只蹲在第一张卡片的上沿，**脚正好踩着卡片边框**，离左边框留一点。
+   靠 .cards 做定位父级、`bottom:100%` 把它的底边压在卡片顶边上——
+   因为螃蟹的墨迹正好填满取景框，框底 = 脚底，所以这一句就等于「脚踩边框」。 */
+.cards{position:relative}
+.clawd{position:absolute;left:26px;bottom:100%;z-index:2}
+.clawd .stage{position:relative;width:54px;height:36px;overflow:visible;cursor:pointer;
   -webkit-tap-highlight-color:transparent;outline:none;user-select:none;-webkit-user-select:none}
 .clawd .stage::-moz-focus-inner{border:0}
 .clawd .stage>div{position:absolute;width:228.4%;height:231.25%;left:-60.88%;top:-131.25%}
 .clawd .stage svg{display:block;pointer-events:none}
-.clawd .say{font-size:12.5px;color:var(--soft);line-height:1.65}
-.clawd .say .who{font-weight:700;color:var(--ink)}
-.clawd .say .hint{color:var(--muted);font-size:11.5px}
 /* 播放器没加载出来时退回官方静图，不留空白 */
-.clawd .stage.fallback{background:url(clawd/clawd.svg) center/auto 58% no-repeat}
+.clawd .stage.fallback{background:url(clawd/clawd.svg) center/contain no-repeat}
 
 </style>
 </head>
@@ -61,13 +62,11 @@ footer{margin-top:34px;font-size:11.5px;color:var(--muted);max-width:680px;line-
   <h1>地図ツール</h1>
 </header>
 
-<div class="clawd">
-  <div class="stage fallback" id="clawd" role="img" aria-label="Claw'd" title="点一下再放一次"><div></div></div>
-  <div class="say"><span class="who">Claw'd</span> —— 这只螃蟹就是我，Claude。<br>
-  这个站的地图数据、瓦片和页面都是我写的。<br><span class="hint">点一下我再演一遍</span></div>
-</div>
-
 <div class="cards">
+  <div class="clawd">
+    <div class="stage fallback" id="clawd" role="img" aria-label="Claw'd" title="点一下再放一次"><div></div></div>
+  </div>
+
   <a class="card quiz" href="quiz/map.html">
     <span class="tag">学習</span>
     <h2>地図 · 学習</h2>
