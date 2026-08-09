@@ -229,8 +229,12 @@ const map=new maplibregl.Map({
         paint:{"line-color":"#5A5560","line-width":["interpolate",["linear"],["zoom"],8,.4,12,1.0],
                "line-opacity":["interpolate",["linear"],["zoom"],8,.5,10,.9,12.8,.9,13.8,0],
                "line-dasharray":[3,1.5]}},
-      // 町丁・字等（令和2年国勢調査 小地域，232,009 个，47 县齐全）
+      // 町丁・字等（令和2年国勢調査 小地域，231,677 个，47 县齐全）
       // OSM 同级只有 4,462 个且缺 14 个县，不可用，故这一级不走 OSM。
+      // 原始 232,009 个是「調査区」不是行政界，里面混着水面調査区，几何一直铺到海里。
+      // 已按 OSM 陆地多边形整体裁剪（pipeline/clip2.py），再删 15 块港内水面残骸
+      // （pipeline/water_rule.py）。对国土地理院《面積調》，1,889 个市区町村
+      // ±2% 达标率 88.7% → 97.4%。
       {id:"jp-cho-fillA",source:"choA","source-layer":"cho",type:"fill",minzoom:11,
         paint:{"fill-color":"#ffffff","fill-opacity":0.001}},
       {id:"jp-choA",source:"choA","source-layer":"cho",type:"line",minzoom:11,
