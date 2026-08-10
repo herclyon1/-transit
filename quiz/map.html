@@ -144,7 +144,7 @@ maplibregl.addProtocol("pmtiles",proto.tile);
 // 新文件同名同 URL，目录偏移全对不上，取回来的就是垃圾——表现为
 // 「标注还在、边界整片消失」，而且不报错。GitHub Pages 的 max-age 是 600s，
 // 手机上实测能吃到更久。加个查询串就当成新资源，一次性根治。
-const V="?v=20260810c";
+const V="?v=20260810d";
 const prefColor=["match",["get","reg"]]; REGIONS.forEach((_,i)=>prefColor.push(i,RC[i])); prefColor.push("#CCC");
 
 const map=new maplibregl.Map({
@@ -199,6 +199,9 @@ const map=new maplibregl.Map({
         paint:{"fill-color":RUS,"fill-opacity":0.9}},
       {id:"ea-rus-line",source:"jp","source-layer":"rus",type:"line",layout:{visibility:"none"},
         paint:{"line-color":"#5f5348","line-width":["interpolate",["linear"],["zoom"],2,.4,10,.9]}},
+      // 樺太/千島 点了要有描边——原来只出卡片不描边，看着像没反应
+      {id:"ea-rus-sel",source:"jp","source-layer":"rus",type:"line",layout:{visibility:"none"},
+        filter:["==",["get","n"],"\u0000"],paint:{"line-color":"#12263A","line-width":3}},
       {id:"ea-line",source:"ea","source-layer":"units",type:"line",layout:{visibility:"none"},
         paint:{"line-color":"#5f5348","line-width":["interpolate",["linear"],["zoom"],2,.4,10,.9]}},
       {id:"ea-sel",source:"ea","source-layer":"units",type:"line",layout:{visibility:"none"},
@@ -334,6 +337,12 @@ const map=new maplibregl.Map({
       // 建数据时已按官方「同一駅グループコード」+ 同名 500m 近邻真合并（10,235 → 9,030），
       // 这里再按 rank（线路条数）分级：缩得越远只留换乘越多的枢纽，
       // 而不是像旧项目那样按格子随便留一个——那会把枢纽砍掉留下小站。
+      // 駅の範囲：N02 的「駅」本来就是沿轨道的一小段线，这才是官方给的站范围。
+      // 画成加粗短横杠，永远压在轨道上；圆点只负责标注和点击。
+      {id:"tr-stationseg",source:"tr","source-layer":"stationseg",type:"line",minzoom:13,
+        layout:{visibility:"none","line-cap":"round"},
+        paint:{"line-color":"#1B2433","line-width":["interpolate",["linear"],["zoom"],13,3,15,7],
+               "line-opacity":.85}},
       {id:"tr-station",source:"tr","source-layer":"station",type:"circle",minzoom:9,layout:{visibility:"none"},
         filter:["case",["<",["zoom"],10],[">=",["get","rank"],5],
                        ["<",["zoom"],11],[">=",["get","rank"],3],
@@ -382,11 +391,16 @@ const map=new maplibregl.Map({
           "text-justify":"auto","text-radial-offset":0.55},
         paint:{"text-color":"#243040","text-halo-color":"#fff","text-halo-width":1.4}},
       // 市町村名：z8 起，z13 之后让位给町丁名
+      // 県庁所在地（cap=1）画得比别的市町村重一号、颜色更深——
+      // z8 之后県名收掉了，光看市名分不出哪个是県庁所在地（用户报的）。
       {id:"jp-lab-muni",source:"jp","source-layer":"munilab",type:"symbol",minzoom:8,
         layout:{"text-field":["get","n"],"text-font":["NotoSansJP Regular"],
-          "text-size":["interpolate",["linear"],["zoom"],8,9.5,12,13],"text-padding":0,
+          "text-size":["interpolate",["linear"],["zoom"],8,
+            ["case",["==",["get","cap"],1],11.5,9.5],12,["case",["==",["get","cap"],1],15,13]],
+          "text-padding":0,
           "text-variable-anchor":["center","top","bottom"],"text-radial-offset":0.3},
-        paint:{"text-color":"#3a4654","text-halo-color":"#fff","text-halo-width":1.3,
+        paint:{"text-color":["case",["==",["get","cap"],1],"#1B2433","#3a4654"],
+          "text-halo-color":"#fff","text-halo-width":1.3,
           "text-opacity":["interpolate",["linear"],["zoom"],12.5,1,13.5,0.45]}},
       // 政令市の区名：z10 起。政令市自己的名字这时已经没有信息量了，区名才有。
       {id:"jp-lab-ku",source:"jp","source-layer":"kulab",type:"symbol",minzoom:10,
@@ -409,7 +423,9 @@ const map=new maplibregl.Map({
       // 争议/分歧范围的说明文字 —— 之前只有虚线看不懂，这条补上
       // 交通的标注排在町丁名**之后**：越靠后优先级越高，駅名/空港名先占位，
       // 町丁名让位。放在前面的话正好反过来，一屏几百个町丁名会把站名全淹掉。
-      {id:"tr-air-lab",source:"tr","source-layer":"air",type:"symbol",minzoom:6,layout:{visibility:"none",
+      // 空港名必须打在**点**上，不能打在面上：面跨几个瓦片，MapLibre 就会每个瓦片
+      // 各画一个标注——那覇空港横跨 3 个瓦片，于是出现三个「那覇空港」（用户报的）。
+      {id:"tr-air-lab",source:"tr","source-layer":"airlab",type:"symbol",minzoom:6,layout:{visibility:"none",
           "text-field":["get","n"],"text-font":["NotoSansJP Regular"],
           "text-size":["interpolate",["linear"],["zoom"],6,9.5,11,13],"text-optional":true,
           "text-variable-anchor":["top","bottom","left","right"],"text-radial-offset":0.6},
@@ -469,7 +485,7 @@ const JP=["jp-cho-fillA","jp-choA","jp-cho-fillB","jp-choB","jp-cho-fillC","jp-c
   "jp-muni-fill","jp-muni","jp-ku-fill","jp-ku","jp-selmA","jp-selmB","jp-selmC","jp-selmD","jp-selm","jp-selk",
   "jp-selcA","jp-selcB","jp-selcC","jp-selcD",
   "jp-lab-muni","jp-lab-ku","jp-lab-cho","jp-lab-disp"];
-const EA=["ea-fill","ea-cap","ea-caplab","ea-rus","ea-rus-line","ea-rus-lab",
+const EA=["ea-fill","ea-cap","ea-caplab","ea-rus","ea-rus-line","ea-rus-sel","ea-rus-lab",
   "ea-line","ea-sel","ea-disp","ea-lab","ea-lab-disp"];
 // 日本这几层**两个视图共用**，永远可见，只靠 setRegion 改 paint / filter。
 // 以前東亜另有一整套 ea-jp-*，样式各写各的，于是两个视图下的日本长得不一样。
@@ -494,8 +510,12 @@ function setRegion(r){
   map.setFilter("jp-lab",    r==="jp"?["<",["zoom"],8]:null);
   map.setFilter("jp-caplab", r==="jp"?["all",["!=",["get","cap"],""],["<",["zoom"],8]]
                                      :["!=",["get","cap"],""]);
-  map.setFilter("jp-cap",    r==="jp"?["all",["!=",["get","cap"],""],["<",["zoom"],10]]
-                                     :["!=",["get","cap"],""]);
+  // 首府圆点两个视图都一直留着——放大之后光看市名分不出哪个是県庁所在地。
+  map.setFilter("jp-cap",    ["!=",["get","cap"],""]);
+  // 水体/河川是全東亜一份。現代日本视图只放日本的（含北方領土），
+  // 否则樺太和千島的水系会在没有陆地的海面上飘着——用户报过这条。
+  map.setFilter("water", r==="jp"?["==",["get","jp"],1]:null);
+  map.setFilter("riv",   r==="jp"?["==",["get","jp"],1]:null);
   document.getElementById("b-jp").classList.toggle("on",r==="jp");
   document.getElementById("b-ea").classList.toggle("on",r==="ea");
   const _c=document.getElementById("card"); _c.style.display="none"; _c.classList.remove("on");
@@ -523,7 +543,7 @@ function setBase(b){
 document.querySelectorAll("#tools button[data-b]").forEach(el=>el.onclick=()=>setBase(el.dataset.b));
 
 // 公共交通叠加层
-const TR=["tr-ferry","tr-rail-other","tr-rail-s3","tr-rail-priv","tr-rail-sub","tr-rail-jr",
+const TR=["tr-ferry","tr-stationseg","tr-rail-other","tr-rail-s3","tr-rail-priv","tr-rail-sub","tr-rail-jr",
           "tr-rail-shin","tr-air","tr-station","tr-air-lab","tr-station-lab"];
 let transit=false;
 const TRLEG=[["#0B4F8A","新幹線"],["#2E7D32","JR在来線"],["#C2410C","地下鉄"],["#7B5EA7","民営鉄道"],
@@ -595,6 +615,7 @@ map.on("click",e=>{
             c.style.display="none"; c.classList.remove("on"); document.body.classList.remove("carded");
             document.getElementById("hint").style.display=""; return; }
   const p=hit.properties, d=map.queryRenderedFeatures(e.point,{layers:[dispId]})[0];
+  if(map.getLayer("ea-rus-sel")) map.setFilter("ea-rus-sel",["==",["get","n"],"\u0000"]);
   let html;
   if(p.dn){
     // 北方領土。填色按实际管理走（俄罗斯），卡片两边立场都写上。
@@ -658,7 +679,9 @@ map.on("click",e=>{
   }else if(p.de_facto==="RUS"){
     map.setFilter(selId,["==",["get","n"],"\u0000"]);
     map.setFilter("jp-sel",["==",["get","code"],-1]);
-    html=`<div class="n">${p.n}</div><div class="sub">${p.note||""}</div>`;
+    map.setFilter("ea-rus-sel",["==",["get","n"],p.n]);
+    html=`<div class="n">${p.n}</div><div class="sub">ロシア連邦 サハリン州（州都：ユジノサハリンスク）</div>`;
+    if(p.note) html+=`<div class="sub">${p.note}</div>`;
   }else if(p.grp!==undefined){
     map.setFilter(selId,["==",["get","n"],p.n]);
     map.setFilter("jp-sel",["==",["get","code"],-1]);
