@@ -2,6 +2,7 @@
 <html lang="zh"><head><meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
 <title>地図 · 学習</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='6' fill='%231B2433'/%3E%3Cpath d='M6 23 12 9l7 8 3-4 4 10z' fill='%23E2A07E'/%3E%3C/svg%3E">
 <!--
   「地図・学習」唯一入口。区域是切换器，不是不同页面——
   一个地图实例、一套渲染器、一份字形，切区域不重新加载页面。
@@ -143,7 +144,7 @@ maplibregl.addProtocol("pmtiles",proto.tile);
 // 新文件同名同 URL，目录偏移全对不上，取回来的就是垃圾——表现为
 // 「标注还在、边界整片消失」，而且不报错。GitHub Pages 的 max-age 是 600s，
 // 手机上实测能吃到更久。加个查询串就当成新资源，一次性根治。
-const V="?v=20260810b";
+const V="?v=20260810c";
 const prefColor=["match",["get","reg"]]; REGIONS.forEach((_,i)=>prefColor.push(i,RC[i])); prefColor.push("#CCC");
 
 const map=new maplibregl.Map({
@@ -235,12 +236,16 @@ const map=new maplibregl.Map({
         paint:{"line-color":"#5A5560","line-width":["interpolate",["linear"],["zoom"],8,.4,12,1.0],
                "line-opacity":["interpolate",["linear"],["zoom"],8,.5,10,.9,12.8,.9,13.8,0],
                "line-dasharray":[3,1.5]}},
-      // 町丁・字等（令和2年国勢調査 小地域，231,677 个，47 县齐全）
+      // 町丁・字等（令和2年国勢調査 小地域，207,959 个，47 县齐全）
       // OSM 同级只有 4,462 个且缺 14 个县，不可用，故这一级不走 OSM。
       // 原始 232,009 个是「調査区」不是行政界，里面混着水面調査区，几何一直铺到海里。
       // 已按 OSM 陆地多边形整体裁剪（pipeline/clip2.py），再删 15 块港内水面残骸
       // （pipeline/water_rule.py）。对国土地理院《面積調》，1,889 个市区町村
       // ±2% 达标率 88.7% → 97.4%。
+      // 再把同一市区町村里**同名的町丁合并成一个要素**（pipeline/merge_cho.py）：
+      // e-Stat 是按調査区切的，一个大字人口多了就被拆成好几块，
+      // 于是同一个町被内部边界切开、名字重复标好几遍（用户报的泉南市「新家」4 个）。
+      // 231,677 → 207,959，面积一平方米没变。
       {id:"jp-cho-fillA",source:"choA","source-layer":"cho",type:"fill",minzoom:11,
         paint:{"fill-color":"#ffffff","fill-opacity":0.001}},
       {id:"jp-choA",source:"choA","source-layer":"cho",type:"line",minzoom:11,
@@ -298,6 +303,16 @@ const map=new maplibregl.Map({
         paint:{"fill-color":RUS,"fill-opacity":0.9}},
       {id:"jp-disp",source:"jp","source-layer":"disp",type:"line",
         paint:{"line-color":"#8a3f3f","line-width":1.6,"line-dasharray":[2,1.5]}},
+      // 湖沼・河川。跟東亜那两层同源（ea_lakes / ea_rivers），只是要画在行政区填色**之上**，
+      // 所以在这里再挂一份而不是复用上面 ea- 的那两层——图层顺序是画顺序，
+      // 挂在上面那个位置会被 jp-fill 整个盖住。
+      // 之前現代日本视图一个水体都没有：琵琶湖・霞ヶ浦・猪苗代湖 全被県的填色盖着，
+      // 北方領土也一样。用户报的「北方領土缺失水体」就是这条。
+      {id:"jp-water",source:"lak","source-layer":"water",type:"fill",minzoom:5,
+        paint:{"fill-color":"#bcd8ec","fill-outline-color":"#9dc2dd"}},
+      {id:"jp-riv",source:"riv","source-layer":"rivers",type:"line",minzoom:7,
+        paint:{"line-color":"#9dc2dd","line-opacity":["interpolate",["linear"],["zoom"],7,.35,10,.9],
+               "line-width":["interpolate",["linear"],["zoom"],7,.4,12,1.4]}},
 
 
       // ── 公共交通（默认关，按钮开）──
@@ -342,7 +357,9 @@ const map=new maplibregl.Map({
           "text-field":["get","n"],"text-font":["NotoSansJP Regular"],
           "text-size":["interpolate",["linear"],["zoom"],6,9.5,11,13],"text-optional":true,
           "text-variable-anchor":["top","bottom","left","right"],"text-radial-offset":0.6},
-        filter:["match",["get","kind"],["kokusai","kyoten"],true,false],
+        // kind=ru 是北方領土上的三个俄方机场（OSM），也要给名字——
+        // 用户报「北方領土缺失交通元素」，只画个色块不写名字等于没画。
+        filter:["match",["get","kind"],["kokusai","kyoten","ru"],true,false],
         paint:{"text-color":"#3B2E5A","text-halo-color":"#fff","text-halo-width":1.5}},
       {id:"tr-station-lab",source:"tr","source-layer":"station",type:"symbol",minzoom:11,layout:{visibility:"none",
           "text-field":["get","n"],"text-font":["NotoSansJP Regular"],
@@ -352,13 +369,28 @@ const map=new maplibregl.Map({
                        ["<",["zoom"],13],[">=",["get","rank"],2],true],
         paint:{"text-color":"#26343F","text-halo-color":"#fff","text-halo-width":1.4}},
       // ── 标注 ──
+      // 一级行政区的标注点放在**它自己的県庁所在地/首府**上（pipeline/build_caps.py），
+      // 不再用多边形代表点——京都府、兵庫県、新疆这种细长或形状怪的单元，
+      // 代表点会落在离任何城市都很远的地方，用户实测截图里就是这个毛病。
+      // 一个点画三样：上方行政区名、中间一个圆点（首府位置）、下方首府名。
+      {id:"jp-cap",source:"jp","source-layer":"preflab",type:"circle",minzoom:4,maxzoom:10,
+        filter:["!=",["get","cap"],""],
+        paint:{"circle-radius":["interpolate",["linear"],["zoom"],4,2,9,3.6],
+          "circle-color":"#243040","circle-stroke-color":"#fff","circle-stroke-width":1.1}},
       // 都道府県名：全程可见；放大到 z8 之后让位给市町村名
       {id:"jp-lab",source:"jp","source-layer":"preflab",type:"symbol",maxzoom:9,
         layout:{"text-field":["get","n"],"text-font":["NotoSansJP Regular"],
           "text-size":["interpolate",["linear"],["zoom"],4,8.5,6,11,9,15],
           "text-allow-overlap":false,"text-padding":0,"text-optional":true,
-          "text-variable-anchor":["center","top","bottom","left","right"],"text-radial-offset":0.4},
+          "text-anchor":"bottom","text-offset":[0,-0.5]},
         paint:{"text-color":"#243040","text-halo-color":"#fff","text-halo-width":1.4}},
+      // 県庁所在地名：z5 起。z8 之后市町村名层已经把它画出来了，这里就收掉，不重复。
+      {id:"jp-caplab",source:"jp","source-layer":"preflab",type:"symbol",minzoom:5,maxzoom:8.2,
+        filter:["!=",["get","cap"],""],
+        layout:{"text-field":["get","cap"],"text-font":["NotoSansJP Regular"],
+          "text-size":["interpolate",["linear"],["zoom"],5,8.5,8,11],"text-optional":true,
+          "text-anchor":"top","text-offset":[0,0.45],"text-padding":1},
+        paint:{"text-color":"#5D6874","text-halo-color":"#fff","text-halo-width":1.3}},
       // 市町村名：z8 起，z13 之后让位给町丁名
       {id:"jp-lab-muni",source:"jp","source-layer":"munilab",type:"symbol",minzoom:8,
         layout:{"text-field":["get","n"],"text-font":["NotoSansJP Regular"],
@@ -391,10 +423,28 @@ const map=new maplibregl.Map({
           "text-allow-overlap":false},
         paint:{"text-color":"#8a3f3f","text-halo-color":"#fff","text-halo-width":1.6}},
 
+      // 東亜也一样：标注点在各单元自己的首府上，圆点 = 首府位置。
+      // OSM 里没有 place 节点的 25 个单元（马绍尔的环礁、新加坡的分区等）
+      // 保留原来的代表点，cap 留空——不画圆点也不写首府名，不编造。
+      {id:"ea-cap",source:"ea","source-layer":"unitlab",type:"circle",minzoom:3,
+        filter:["!=",["get","cap"],""],layout:{visibility:"none"},
+        paint:{"circle-radius":["interpolate",["linear"],["zoom"],3,1.8,8,3.6],
+          "circle-color":"#243040","circle-stroke-color":"#fff","circle-stroke-width":1.1}},
+      {id:"ea-jp-cap",source:"jp","source-layer":"preflab",type:"circle",minzoom:5,
+        filter:["!=",["get","cap"],""],layout:{visibility:"none"},
+        paint:{"circle-radius":["interpolate",["linear"],["zoom"],5,1.8,8,3.6],
+          "circle-color":"#243040","circle-stroke-color":"#fff","circle-stroke-width":1.1}},
       {id:"ea-lab",source:"ea","source-layer":"unitlab",type:"symbol",layout:{visibility:"none",
           "text-field":["get","n"],"text-font":["NotoSansJP Regular"],
-          "text-size":["interpolate",["linear"],["zoom"],2,9,7,14],"text-padding":2},
+          "text-size":["interpolate",["linear"],["zoom"],2,9,7,14],"text-padding":2,
+          "text-anchor":"bottom","text-offset":[0,-0.45],"text-optional":true},
         paint:{"text-color":"#243040","text-halo-color":"#fff","text-halo-width":1.4}},
+      {id:"ea-caplab",source:"ea","source-layer":"unitlab",type:"symbol",minzoom:4,
+        filter:["!=",["get","cap"],""],layout:{visibility:"none",
+          "text-field":["get","cap"],"text-font":["NotoSansJP Regular"],
+          "text-size":["interpolate",["linear"],["zoom"],4,8,8,11.5],"text-padding":1,
+          "text-anchor":"top","text-offset":[0,0.4],"text-optional":true},
+        paint:{"text-color":"#5D6874","text-halo-color":"#fff","text-halo-width":1.3}},
       {id:"ea-rus-lab",source:"jp","source-layer":"ruslab",type:"symbol",layout:{visibility:"none",
           "text-field":["get","n"],"text-font":["NotoSansJP Regular"],
           "text-size":["interpolate",["linear"],["zoom"],2,9,7,14],"text-padding":2},
@@ -414,11 +464,11 @@ window.map=map;  // 供自动截图验收脚本使用
 map.touchZoomRotate.disableRotation();
 window.__map=map;
 
-const JP=["jp-fill","jp-cho-fillA","jp-choA","jp-cho-fillB","jp-choB","jp-cho-fillC","jp-choC","jp-cho-fillD","jp-choD",
+const JP=["jp-fill","jp-cap","jp-caplab","jp-cho-fillA","jp-choA","jp-cho-fillB","jp-choB","jp-cho-fillC","jp-choC","jp-cho-fillD","jp-choD",
   "jp-muni-fill","jp-muni","jp-ku-fill","jp-ku","jp-line","jp-sel","jp-selmA","jp-selmB","jp-selmC","jp-selmD","jp-selm","jp-selk",
-  "jp-selcA","jp-selcB","jp-selcC","jp-selcD","jp-disp-fill","jp-disp",
+  "jp-selcA","jp-selcB","jp-selcC","jp-selcD","jp-disp-fill","jp-disp","jp-water","jp-riv",
   "jp-lab","jp-lab-muni","jp-lab-ku","jp-lab-cho","jp-lab-disp"];
-const EA=["ea-fill","ea-rus","ea-rus-line","ea-jp-fill","ea-jp-disp","ea-jp-sel","ea-jp-line","ea-jp-lab","ea-rus-lab","ea-water","ea-riv","ea-line","ea-sel","ea-disp","ea-lab","ea-lab-disp"];
+const EA=["ea-fill","ea-cap","ea-caplab","ea-jp-cap","ea-rus","ea-rus-line","ea-jp-fill","ea-jp-disp","ea-jp-sel","ea-jp-line","ea-jp-lab","ea-rus-lab","ea-water","ea-riv","ea-line","ea-sel","ea-disp","ea-lab","ea-lab-disp"];
 let region="jp";
 
 function setRegion(r){
@@ -512,8 +562,11 @@ map.on("click",e=>{
   const fillId=region==="jp"?"jp-fill":"ea-fill";
   const selId =region==="jp"?"jp-sel" :"ea-sel";
   const dispId=region==="jp"?"jp-disp":"ea-disp";
-  // 東亜视图里日本是用現代日本那份几何补上的，命中层不一样，得一起查
-  const hitLayers = region==="jp" ? [fillId] : [fillId,"ea-jp-fill","ea-rus"];
+  // 東亜视图里日本是用現代日本那份几何补上的，命中层不一样，得一起查。
+  // 北方領土画在单独的 disp 层里，不在任何一个 fill 层里——原来没挂进命中层，
+  // 于是点它完全没反馈（用户报的 bug）。两个视图各自的 disp 填充层都要挂上。
+  const hitLayers = region==="jp" ? [fillId,"jp-disp-fill"]
+                                  : [fillId,"ea-jp-fill","ea-rus","ea-jp-disp"];
   const hit=map.queryRenderedFeatures(e.point,{layers:hitLayers})[0];
   if(!hit){ map.setFilter(selId, region==="jp"?["==",["get","code"],-1]:["==",["get","n"],"\u0000"]);
             if(region==="jp") ["jp-selm","jp-selk","jp-selmA","jp-selmB","jp-selmC","jp-selmD","jp-selcA","jp-selcB","jp-selcC","jp-selcD"].forEach(id=>map.setFilter(id,["==",["get","n"],"\u0000"]));
@@ -522,7 +575,14 @@ map.on("click",e=>{
             document.getElementById("hint").style.display=""; return; }
   const p=hit.properties, d=map.queryRenderedFeatures(e.point,{layers:[dispId]})[0];
   let html;
-  if(region==="jp"){
+  if(p.dn){
+    // 北方領土。填色按实际管理走（俄罗斯），卡片两边立场都写上。
+    map.setFilter(selId, region==="jp"?["==",["get","code"],-1]:["==",["get","n"],"\u0000"]);
+    if(region==="jp") ["jp-selm","jp-selk","jp-selmA","jp-selmB","jp-selmC","jp-selmD","jp-selcA","jp-selcB","jp-selcC","jp-selcD"].forEach(id=>map.setFilter(id,["==",["get","n"],"\u0000"]));
+    else map.setFilter("ea-jp-sel",["==",["get","code"],-1]);
+    html=`<div class="n">${p.dn}</div><div class="sub">実効支配：ロシア連邦 サハリン州</div>`;
+    if(p.note) html+=`<div class="disp">${p.note}</div>`;
+  }else if(region==="jp"){
     map.setFilter(selId,["==",["get","code"],p.code]);
     // 命中测试一律打填充层。之前这里打的是 jp-muni（线层），
     // 只有正好点在边界线上才返回要素，所以市町村那一级几乎永远点不出来。
@@ -581,13 +641,14 @@ map.on("click",e=>{
   }else if(p.grp!==undefined){
     map.setFilter(selId,["==",["get","n"],p.n]);
     html=`<div class="n">${p.n}</div><div class="sub">${p.grp}</div>`;
+    if(p.cap) html+=`<div class="sub">首府：${p.cap}</div>`;
   }else{
     // 命中的是東亜视图里的日本（属性来自 pref 层，没有 grp）
     map.setFilter(selId,["==",["get","n"],"\u0000"]);
     map.setFilter("ea-jp-sel",["==",["get","code"],p.code]);
     html=`<div class="n">${p.n}</div><div class="sub">日本　県庁：${p.cap}　地方：${p.regn}</div>`;
   }
-  if(d&&d.properties&&d.properties.note)
+  if(!p.dn && d&&d.properties&&d.properties.note)
     html+=`<div class="disp">${d.properties.dn}：${d.properties.note}</div>`;
   c.innerHTML='<span class="x" onclick="document.getElementById(\'card\').style.display=\'none\';document.getElementById(\'card\').classList.remove(\'on\');document.getElementById(\'hint\').style.display=\'\';">×</span>'+html;
   c.style.display="block"; c.classList.add("on");
