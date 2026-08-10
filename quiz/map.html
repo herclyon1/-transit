@@ -144,7 +144,7 @@ maplibregl.addProtocol("pmtiles",proto.tile);
 // 新文件同名同 URL，目录偏移全对不上，取回来的就是垃圾——表现为
 // 「标注还在、边界整片消失」，而且不报错。GitHub Pages 的 max-age 是 600s，
 // 手机上实测能吃到更久。加个查询串就当成新资源，一次性根治。
-const V="?v=20260810d";
+const V="?v=20260810e";
 const prefColor=["match",["get","reg"]]; REGIONS.forEach((_,i)=>prefColor.push(i,RC[i])); prefColor.push("#CCC");
 
 const map=new maplibregl.Map({
@@ -202,6 +202,18 @@ const map=new maplibregl.Map({
       // 樺太/千島 点了要有描边——原来只出卡片不描边，看着像没反应
       {id:"ea-rus-sel",source:"jp","source-layer":"rus",type:"line",layout:{visibility:"none"},
         filter:["==",["get","n"],"\u0000"],paint:{"line-color":"#12263A","line-width":3}},
+      // 東亜的下一级（目前只做了越南 3,320 个社/坊、缅甸 121 个県）。
+      // 越南 2025-07-01 撤了县级改成「省 → 社/坊」两级，所以社/坊就是它的下一级。
+      // z6 起才画，再往下的层级不做——一屏几千个多边形没有意义。
+      {id:"ea-sub-fill",source:"ea","source-layer":"sub",type:"fill",minzoom:6,
+        layout:{visibility:"none"},paint:{"fill-color":"#fff","fill-opacity":0.001}},
+      {id:"ea-sub",source:"ea","source-layer":"sub",type:"line",minzoom:6,
+        layout:{visibility:"none"},
+        paint:{"line-color":"#7a6f62","line-width":["interpolate",["linear"],["zoom"],6,.25,11,.8],
+               "line-opacity":["interpolate",["linear"],["zoom"],6,.45,9,.85]}},
+      {id:"ea-sub-sel",source:"ea","source-layer":"sub",type:"line",minzoom:6,
+        layout:{visibility:"none"},filter:["==",["get","n"],"\u0000"],
+        paint:{"line-color":"#1B2433","line-width":2.4}},
       {id:"ea-line",source:"ea","source-layer":"units",type:"line",layout:{visibility:"none"},
         paint:{"line-color":"#5f5348","line-width":["interpolate",["linear"],["zoom"],2,.4,10,.9]}},
       {id:"ea-sel",source:"ea","source-layer":"units",type:"line",layout:{visibility:"none"},
@@ -296,12 +308,25 @@ const map=new maplibregl.Map({
         paint:{"fill-color":RUS,"fill-opacity":0.9}},
       {id:"jp-disp",source:"jp","source-layer":"disp",type:"line",
         paint:{"line-color":"#8a3f3f","line-width":1.6,"line-dasharray":[2,1.5]}},
+      // 北方領土的选中描边。原来点了只出卡片、地图上一点反应都没有——
+      // 因为高亮层只有 pref/muni/ku/cho 那几个，disp 层压根没配。
+      // 画成实线且比虚线粗，压在虚线上面才看得出来。
+      {id:"jp-disp-sel",source:"jp","source-layer":"disp",type:"line",
+        filter:["==",["get","dn"],"\u0000"],
+        paint:{"line-color":"#12263A","line-width":3.4}},
       // 湖沼・河川。**全图只有这一份**，两个视图共用（原来東亜另有 ea-water/ea-riv 一套）。
       // 位置必须在行政区填色**之上**——图层顺序就是画顺序，挂在東亜那批里会被 jp-fill 盖掉，
       // 那正是「現代日本视图一个水体都没有」的原因：琵琶湖・霞ヶ浦・猪苗代湖 和北方領土
       // 全被県的填色压着。
+      // 湖沼的填色**跟海的底色完全一样**，也不描边。
+      // 用户报「川崎这块……有的涂成蓝色了，别涂色，只要是在海里的都不涂，这是设计美术问题」：
+      // 港内的运河和港池在 OSM 里也是 natural=water，用一个跟海不同的蓝去填，
+      // 埋立地之间就出现一格一格深浅不一的蓝块。
+      // 试过按「是否落在陆地里」把海的那部分筛掉——不行，OSM 的陆地多边形
+      // 把防波堤围起来的港池也算陆地，筛不出来。
+      // 统一成同一个蓝就没有这个问题了：水就是水，海和湖本来也该一个颜色。
       {id:"water",source:"lak","source-layer":"water",type:"fill",minzoom:3,
-        paint:{"fill-color":"#bcd8ec","fill-outline-color":"#9dc2dd"}},
+        paint:{"fill-color":"#DCEBF5","fill-outline-color":"#DCEBF5"}},
       {id:"riv",source:"riv","source-layer":"rivers",type:"line",minzoom:5,
         paint:{"line-color":"#9dc2dd","line-opacity":["interpolate",["linear"],["zoom"],5,.35,9,.9],
                "line-width":["interpolate",["linear"],["zoom"],5,.4,12,1.4]}},
@@ -453,6 +478,11 @@ const map=new maplibregl.Map({
         filter:["!=",["get","cap"],""],layout:{visibility:"none"},
         paint:{"circle-radius":["interpolate",["linear"],["zoom"],3,1.8,8,3.6],
           "circle-color":"#243040","circle-stroke-color":"#fff","circle-stroke-width":1.1}},
+      {id:"ea-sublab",source:"ea","source-layer":"sublab",type:"symbol",minzoom:8,
+        layout:{visibility:"none","text-field":["get","n"],"text-font":["NotoSansJP Regular"],
+          "text-size":["interpolate",["linear"],["zoom"],8,9,12,12],"text-padding":2,
+          "text-optional":true,"text-max-width":9},
+        paint:{"text-color":"#5b5348","text-halo-color":"#fff","text-halo-width":1.3}},
       {id:"ea-caplab",source:"ea","source-layer":"unitlab",type:"symbol",minzoom:4,
         filter:["!=",["get","cap"],""],layout:{visibility:"none",
           "text-field":["get","cap"],"text-font":["NotoSansJP Regular"],
@@ -485,11 +515,11 @@ const JP=["jp-cho-fillA","jp-choA","jp-cho-fillB","jp-choB","jp-cho-fillC","jp-c
   "jp-muni-fill","jp-muni","jp-ku-fill","jp-ku","jp-selmA","jp-selmB","jp-selmC","jp-selmD","jp-selm","jp-selk",
   "jp-selcA","jp-selcB","jp-selcC","jp-selcD",
   "jp-lab-muni","jp-lab-ku","jp-lab-cho","jp-lab-disp"];
-const EA=["ea-fill","ea-cap","ea-caplab","ea-rus","ea-rus-line","ea-rus-sel","ea-rus-lab",
+const EA=["ea-fill","ea-cap","ea-caplab","ea-sub-fill","ea-sub","ea-sub-sel","ea-sublab","ea-rus","ea-rus-line","ea-rus-sel","ea-rus-lab",
   "ea-line","ea-sel","ea-disp","ea-lab","ea-lab-disp"];
 // 日本这几层**两个视图共用**，永远可见，只靠 setRegion 改 paint / filter。
 // 以前東亜另有一整套 ea-jp-*，样式各写各的，于是两个视图下的日本长得不一样。
-const JPBOTH=["jp-fill","jp-line","jp-sel","jp-disp-fill","jp-disp",
+const JPBOTH=["jp-fill","jp-line","jp-sel","jp-disp-fill","jp-disp","jp-disp-sel",
   "water","riv","jp-cap","jp-lab","jp-caplab"];
 const JPCOL=EAC[EAC.indexOf("JPN")+1];
 let region="jp";
@@ -608,6 +638,11 @@ map.on("click",e=>{
   // 于是点它完全没反馈（用户报的 bug）。两个视图各自的 disp 填充层都要挂上。
   const hitLayers = region==="jp" ? [fillId,"jp-disp-fill"]
                                   : [fillId,"jp-fill","ea-rus","jp-disp-fill"];
+  // 東亜下一级（越南的社/坊、缅甸的県）：单独查，查到就在卡片上多写一行
+  const sub = region==="ea" && map.getLayer("ea-sub-fill")
+    ? map.queryRenderedFeatures(e.point,{layers:["ea-sub-fill"]})[0] : null;
+  if(map.getLayer("ea-sub-sel"))
+    map.setFilter("ea-sub-sel", sub?["==",["get","n"],sub.properties.n]:["==",["get","n"],"\u0000"]);
   const hit=map.queryRenderedFeatures(e.point,{layers:hitLayers})[0];
   if(!hit){ map.setFilter(selId, region==="jp"?["==",["get","code"],-1]:["==",["get","n"],"\u0000"]);
             if(region==="jp") ["jp-selm","jp-selk","jp-selmA","jp-selmB","jp-selmC","jp-selmD","jp-selcA","jp-selcB","jp-selcC","jp-selcD"].forEach(id=>map.setFilter(id,["==",["get","n"],"\u0000"]));
@@ -616,12 +651,14 @@ map.on("click",e=>{
             document.getElementById("hint").style.display=""; return; }
   const p=hit.properties, d=map.queryRenderedFeatures(e.point,{layers:[dispId]})[0];
   if(map.getLayer("ea-rus-sel")) map.setFilter("ea-rus-sel",["==",["get","n"],"\u0000"]);
+  if(map.getLayer("jp-disp-sel")) map.setFilter("jp-disp-sel",["==",["get","dn"],"\u0000"]);
   let html;
   if(p.dn){
     // 北方領土。填色按实际管理走（俄罗斯），卡片两边立场都写上。
     map.setFilter(selId, region==="jp"?["==",["get","code"],-1]:["==",["get","n"],"\u0000"]);
     if(region==="jp") ["jp-selm","jp-selk","jp-selmA","jp-selmB","jp-selmC","jp-selmD","jp-selcA","jp-selcB","jp-selcC","jp-selcD"].forEach(id=>map.setFilter(id,["==",["get","n"],"\u0000"]));
     else map.setFilter("jp-sel",["==",["get","code"],-1]);
+    map.setFilter("jp-disp-sel",["==",["get","dn"],p.dn]);
     html=`<div class="n">${p.dn}</div><div class="sub">実効支配：ロシア連邦 サハリン州</div>`;
     if(p.note) html+=`<div class="disp">${p.note}</div>`;
   }else if(region==="jp"){
@@ -687,6 +724,7 @@ map.on("click",e=>{
     map.setFilter("jp-sel",["==",["get","code"],-1]);
     html=`<div class="n">${p.n}</div><div class="sub">${p.grp}</div>`;
     if(p.cap) html+=`<div class="sub">首府：${p.cap}</div>`;
+    if(sub&&sub.properties&&sub.properties.n) html+=`<div class="sub">下位区画：${sub.properties.n}</div>`;
   }else{
     // 命中的是東亜视图里的日本（属性来自 pref 层，没有 grp）
     map.setFilter(selId,["==",["get","n"],"\u0000"]);
