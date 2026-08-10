@@ -144,7 +144,7 @@ maplibregl.addProtocol("pmtiles",proto.tile);
 // 新文件同名同 URL，目录偏移全对不上，取回来的就是垃圾——表现为
 // 「标注还在、边界整片消失」，而且不报错。GitHub Pages 的 max-age 是 600s，
 // 手机上实测能吃到更久。加个查询串就当成新资源，一次性根治。
-const V="?v=20260810e";
+const V="?v=20260810g";
 const prefColor=["match",["get","reg"]]; REGIONS.forEach((_,i)=>prefColor.push(i,RC[i])); prefColor.push("#CCC");
 
 const map=new maplibregl.Map({
@@ -175,6 +175,10 @@ const map=new maplibregl.Map({
                  tileSize:256,maxzoom:15,attribution:"地理院タイル"},
       // 公共交通：国土数値情報（国土交通省）N02-24 鉄道 / C28-21 空港 / N09-12 定期旅客航路
       tr :{type:"vector",url:"pmtiles://transit.pmtiles"+V},
+      // 東亜交通：OSM（21 个国家/地区的 Geofabrik 提取包 + 俄远东）。
+      // 日本境内**不用**这一份——N02 的分类（新幹線/JR/民鉄/三セク）比 OSM 稳，
+      // 所以東亜视图里的日本仍旧走上面那个 tr 源，两份拼起来正好不重不漏。
+      etr:{type:"vector",url:"pmtiles://eatr.pmtiles"+V},
       lak:{type:"vector",url:"pmtiles://ea_lakes.pmtiles"+V},
       riv:{type:"vector",url:"pmtiles://ea_rivers.pmtiles"+V}},
     layers:[
@@ -375,6 +379,47 @@ const map=new maplibregl.Map({
         paint:{"circle-radius":["interpolate",["linear"],["zoom"],9,2.2,12,2.6,15,4.2],
                "circle-color":"#fff","circle-stroke-color":"#37474F",
                "circle-stroke-width":["interpolate",["linear"],["zoom"],9,1,15,1.4]}},
+      // ── 東亜交通（同样默认关，跟日本那份共用「交通」按钮）──
+      // 颜色沿用日本那套图例，同类同色：高速鉄道＝新幹線蓝、普通鉄道＝JR 绿、
+      // 地下鉄＝橙、軌道/モノレール＝褐、空港＝紫、航路＝浅蓝。
+      // 分级不靠 tippecanoe 随机丢，靠这里的 minzoom 和 L（线长 km）过滤——
+      // 随机丢会把跨海航路丢掉只留下一堆几百米的河渡口，低缩放就废了。
+      {id:"etr-ferry",source:"etr","source-layer":"ferry",type:"line",minzoom:3,layout:{visibility:"none"},
+        filter:["case",["<",["zoom"],5],[">=",["get","L"],120],
+                       ["<",["zoom"],7],[">=",["get","L"],25],
+                       ["<",["zoom"],9],[">=",["get","L"],3],true],
+        paint:{"line-color":"#3E7CB1","line-width":["interpolate",["linear"],["zoom"],3,.5,10,1.2],
+               "line-opacity":.55,"line-dasharray":[2,2]}},
+      {id:"etr-rail-lrt",source:"etr","source-layer":"raillrt",type:"line",minzoom:8,layout:{visibility:"none"},
+        paint:{"line-color":"#8D6E63","line-width":["interpolate",["linear"],["zoom"],8,.5,12,1.6]}},
+      {id:"etr-rail-sub",source:"etr","source-layer":"railsub",type:"line",minzoom:8,layout:{visibility:"none"},
+        paint:{"line-color":"#C2410C","line-width":["interpolate",["linear"],["zoom"],8,.8,13,2.4]}},
+      {id:"etr-rail",source:"etr","source-layer":"rail",type:"line",minzoom:5,layout:{visibility:"none"},
+        paint:{"line-color":"#2E7D32","line-width":["interpolate",["linear"],["zoom"],4,.45,12,2.1]}},
+      {id:"etr-rail-hs",source:"etr","source-layer":"railhs",type:"line",minzoom:3,layout:{visibility:"none"},
+        paint:{"line-color":"#0B4F8A","line-width":["interpolate",["linear"],["zoom"],3,.8,12,3.4]}},
+      {id:"etr-air",source:"etr","source-layer":"air",type:"fill",minzoom:8,layout:{visibility:"none"},
+        paint:{"fill-color":"#5B4B8A","fill-opacity":.75}},
+      // 空港的点：国际的早出（z4），国内/通用的 z8 才出，军民合用的 z9。
+      // 用户要的「非国际的就特别标注一下，都画上去」——4,384 个国内场都在里面，
+      // 只是低缩放不挤出来。国际的圈大一圈、描白边，一眼分得出。
+      {id:"etr-airpt",source:"etr","source-layer":"airpt",type:"circle",minzoom:4,layout:{visibility:"none"},
+        filter:["case",["<",["zoom"],8],["==",["get","k"],"intl"],
+                       ["<",["zoom"],9],["!=",["get","k"],"mil"],true],
+        paint:{"circle-radius":["interpolate",["linear"],["zoom"],4,
+                 ["case",["==",["get","k"],"intl"],2.6,1.6],10,
+                 ["case",["==",["get","k"],"intl"],4.6,3]],
+               "circle-color":["match",["get","k"],"intl","#5B4B8A","mil","#7A6A55","#9A8FC0"],
+               "circle-stroke-color":"#fff","circle-stroke-width":1}},
+      {id:"etr-port",source:"etr","source-layer":"port",type:"circle",minzoom:6,layout:{visibility:"none"},
+        // 渡轮码头（ft）比商港多得多（11,881 : 3,726），低缩放只放商港
+        filter:["case",["<",["zoom"],9],["==",["get","k"],"port"],true],
+        paint:{"circle-radius":["interpolate",["linear"],["zoom"],6,1.8,12,3.6],
+               "circle-color":["match",["get","k"],"port","#1F6F8B","#5FA8C4"],
+               "circle-stroke-color":"#fff","circle-stroke-width":.9}},
+      {id:"etr-bc",source:"etr","source-layer":"bc",type:"circle",minzoom:6,layout:{visibility:"none"},
+        paint:{"circle-radius":["interpolate",["linear"],["zoom"],6,2,12,4],
+               "circle-color":"#B4451F","circle-stroke-color":"#fff","circle-stroke-width":1}},
       // 交通标注排在行政标注前面：避让时先给駅名/空港名占位
       // ── 标注 ──
       // 一级行政区的标注点放在**它自己的県庁所在地/首府**上（pipeline/build_caps.py），
@@ -477,6 +522,33 @@ const map=new maplibregl.Map({
         filter:["case",["<",["zoom"],12],[">=",["get","rank"],3],
                        ["<",["zoom"],13],[">=",["get","rank"],2],true],
         paint:{"text-color":"#26343F","text-halo-color":"#fff","text-halo-width":1.4}},
+      // 東亜交通的标注。国际空港 z5 起，国内空港要到 z9；港口和口岸 z9 起。
+      // 名字优先取 OSM 的 name:zh，没有中文才退英文/本地名（见 pipeline/ea_transit_ex.py）。
+      {id:"etr-air-lab",source:"etr","source-layer":"airpt",type:"symbol",minzoom:5,
+        layout:{visibility:"none","text-field":["get","n"],"text-font":["NotoSansJP Regular"],
+          "text-size":["interpolate",["linear"],["zoom"],5,
+            ["case",["==",["get","k"],"intl"],9,8],11,
+            ["case",["==",["get","k"],"intl"],12.5,10.5]],"text-optional":true,
+          "text-variable-anchor":["top","bottom","left","right"],"text-radial-offset":0.6},
+        // z10 之前只写国际机场的名字。z9 就全写的话，首尔一屏会冒出
+        //「하늘누리 비행학교」这种飞行学校，把仁川/金浦挤掉。
+        filter:["all",["!=",["get","n"],""],
+                ["case",["<",["zoom"],10],["==",["get","k"],"intl"],true]],
+        paint:{"text-color":["match",["get","k"],"intl","#3B2E5A","mil","#5B5040","#6B6480"],
+          "text-halo-color":"#fff","text-halo-width":1.5}},
+      {id:"etr-port-lab",source:"etr","source-layer":"port",type:"symbol",minzoom:9,
+        layout:{visibility:"none","text-field":["get","n"],"text-font":["NotoSansJP Regular"],
+          "text-size":10,"text-optional":true,
+          "text-variable-anchor":["top","bottom","left","right"],"text-radial-offset":0.55},
+        filter:["all",["!=",["get","n"],""],
+                ["case",["<",["zoom"],10],["==",["get","k"],"port"],true]],
+        paint:{"text-color":"#175A70","text-halo-color":"#fff","text-halo-width":1.4}},
+      {id:"etr-bc-lab",source:"etr","source-layer":"bc",type:"symbol",minzoom:8,
+        layout:{visibility:"none","text-field":["get","n"],"text-font":["NotoSansJP Regular"],
+          "text-size":10,"text-optional":true,
+          "text-variable-anchor":["top","bottom","left","right"],"text-radial-offset":0.55},
+        filter:["!=",["get","n"],""],
+        paint:{"text-color":"#8F3416","text-halo-color":"#fff","text-halo-width":1.4}},
       {id:"jp-lab-disp",source:"jp","source-layer":"displab",type:"symbol",
         layout:{"text-field":["concat",["get","dn"],"\n",["get","note"]],
           "text-font":["NotoSansJP Regular"],"text-size":11,"text-max-width":11,
@@ -563,8 +635,7 @@ function setRegion(r){
   const _c=document.getElementById("card"); _c.style.display="none"; _c.classList.remove("on");
   document.body.classList.remove("carded");
   document.getElementById("hint").style.display="";
-  TR.forEach(id=>map.setLayoutProperty(id,"visibility",(transit&&r==="jp")?"visible":"none"));
-  document.getElementById("b-tr").style.display = r==="jp" ? "" : "none";
+  applyTransit();
   drawLegend();
   map.flyTo(r==="jp"?{center:[137.5,37.5],zoom:4.3}:{center:[112,20],zoom:2.6},{duration:700});
 }
@@ -587,15 +658,32 @@ document.querySelectorAll("#tools button[data-b]").forEach(el=>el.onclick=()=>se
 // 公共交通叠加层
 const TR=["tr-ferry","tr-stationseg","tr-rail-other","tr-rail-s3","tr-rail-priv","tr-rail-sub","tr-rail-jr",
           "tr-rail-shin","tr-air","tr-station","tr-air-lab","tr-station-lab"];
+// 東亜视图里日本仍旧用 N02 那份（分类更准），只是不画駅——
+// 別国那 21 份 OSM 提取包里没有駅，只画日本的駅会显得日本特别热闹，反而失衡。
+const TRJP=["tr-ferry","tr-rail-other","tr-rail-s3","tr-rail-priv","tr-rail-sub","tr-rail-jr",
+            "tr-rail-shin","tr-air","tr-air-lab"];
+const ETR=["etr-ferry","etr-rail-lrt","etr-rail-sub","etr-rail","etr-rail-hs","etr-air",
+           "etr-airpt","etr-port","etr-bc","etr-air-lab","etr-port-lab","etr-bc-lab"];
 let transit=false;
 const TRLEG=[["#0B4F8A","新幹線"],["#2E7D32","JR在来線"],["#C2410C","地下鉄"],["#7B5EA7","民営鉄道"],
              ["#00838F","第三セクター"],["#8D6E63","軌道・モノレール・新交通"],["#5B4B8A","空港"],["#3E7CB1","定期旅客航路"]];
+const ETRLEG=[["#0B4F8A","高速鉄道"],["#2E7D32","鉄道"],["#C2410C","地下鉄"],["#8D6E63","軌道・モノレール"],
+              ["#5B4B8A","国際空港"],["#9A8FC0","国内・その他の空港"],["#3E7CB1","フェリー航路"],
+              ["#1F6F8B","港湾"],["#B4451F","国境検問所"]];
+// 两个视图共用同一个「交通」按钮：現代日本用 N02 那套，東亜用 OSM 那套＋日本的 N02。
+function applyTransit(){
+  const jp = transit && region==="jp";
+  const ea = transit && region==="ea";
+  TR.forEach(id=>map.setLayoutProperty(id,"visibility",jp?"visible":"none"));
+  if(ea) TRJP.forEach(id=>map.setLayoutProperty(id,"visibility","visible"));
+  ETR.forEach(id=>map.setLayoutProperty(id,"visibility",ea?"visible":"none"));
+  document.getElementById("b-tr").classList.toggle("on",transit);
+}
 function setTransit(on){
   transit=on;
   // 开交通时町丁名推迟一级，避免几百个町丁名把站名淹掉
   map.setLayerZoomRange("jp-lab-cho", on?14:13, 24);
-  TR.forEach(id=>map.setLayoutProperty(id,"visibility",(on&&region==="jp")?"visible":"none"));
-  document.getElementById("b-tr").classList.toggle("on",on);
+  applyTransit();
   if(legOpen) drawLegend();
 }
 document.getElementById("b-tr").onclick=()=>setTransit(!transit);
@@ -603,8 +691,10 @@ document.getElementById("b-tr").onclick=()=>setTransit(!transit);
 function drawLegend(){
   const el=document.getElementById("legend");
   let h="";
-  if(transit&&region==="jp")
-    h+="<div class='h'>公共交通</div>"+TRLEG.map(([c,n])=>`<i style="background:${c}"></i>${n}`).join("<br>")+"<div class='hr'></div>";
+  if(transit)
+    h+="<div class='h'>公共交通</div>"
+      +(region==="jp"?TRLEG:ETRLEG).map(([c,n])=>`<i style="background:${c}"></i>${n}`).join("<br>")
+      +"<div class='hr'></div>";
   h += region==="jp"
     ? "<div class='h'>地方</div>"+REGIONS.map((x,i)=>`<i style="background:${RC[i]}"></i>${x}`).join("<br>")
       +`<div class='hr'></div><i style="background:${RUS}"></i>北方領土（ロシア実効支配）`
