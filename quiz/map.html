@@ -144,7 +144,7 @@ maplibregl.addProtocol("pmtiles",proto.tile);
 // 新文件同名同 URL，目录偏移全对不上，取回来的就是垃圾——表现为
 // 「标注还在、边界整片消失」，而且不报错。GitHub Pages 的 max-age 是 600s，
 // 手机上实测能吃到更久。加个查询串就当成新资源，一次性根治。
-const V="?v=20260810h";
+const V="?v=20260810j";
 const prefColor=["match",["get","reg"]]; REGIONS.forEach((_,i)=>prefColor.push(i,RC[i])); prefColor.push("#CCC");
 
 const map=new maplibregl.Map({
@@ -179,6 +179,9 @@ const map=new maplibregl.Map({
       // 日本境内**不用**这一份——N02 的分类（新幹線/JR/民鉄/三セク）比 OSM 稳，
       // 所以東亜视图里的日本仍旧走上面那个 tr 源，两份拼起来正好不重不漏。
       etr:{type:"vector",url:"pmtiles://eatr.pmtiles"+V},
+      // 高速/一級公路单独一个文件：并进 eatr.pmtiles 的话是 101.3MB，
+      // 正好压在 GitHub 单文件 100MB 上限上，拆开之后 31MB + 71MB。
+      erd:{type:"vector",url:"pmtiles://eatr_road.pmtiles"+V},
       lak:{type:"vector",url:"pmtiles://ea_lakes.pmtiles"+V},
       riv:{type:"vector",url:"pmtiles://ea_rivers.pmtiles"+V}},
     layers:[
@@ -390,6 +393,12 @@ const map=new maplibregl.Map({
       // 地下鉄＝橙、軌道/モノレール＝褐、空港＝紫、航路＝浅蓝。
       // 分级不靠 tippecanoe 随机丢，靠这里的 minzoom 和 L（线长 km）过滤——
       // 随机丢会把跨海航路丢掉只留下一堆几百米的河渡口，低缩放就废了。
+      // 公路画在铁路**下面**：铁路是这张图的主角，压在公路上才看得清换乘关系。
+      // 一級公路（trunk）在中国和印度密度极高，所以比高速晚两级才出。
+      {id:"etr-trunk",source:"erd","source-layer":"trunk",type:"line",minzoom:7,layout:{visibility:"none"},
+        paint:{"line-color":"#D8A24A","line-width":["interpolate",["linear"],["zoom"],7,.4,12,1.6]}},
+      {id:"etr-motorway",source:"erd","source-layer":"motorway",type:"line",minzoom:5,layout:{visibility:"none"},
+        paint:{"line-color":"#C46A28","line-width":["interpolate",["linear"],["zoom"],5,.5,12,2.4]}},
       {id:"etr-ferry",source:"etr","source-layer":"ferry",type:"line",minzoom:3,layout:{visibility:"none"},
         filter:["case",["<",["zoom"],5],[">=",["get","L"],120],
                        ["<",["zoom"],7],[">=",["get","L"],25],
@@ -424,8 +433,17 @@ const map=new maplibregl.Map({
                "circle-color":["match",["get","k"],"port","#1F6F8B","#5FA8C4"],
                "circle-stroke-color":"#fff","circle-stroke-width":.9}},
       {id:"etr-bc",source:"etr","source-layer":"bc",type:"circle",minzoom:6,layout:{visibility:"none"},
+        // 没名字的口岸只在 z8 以上出——低缩放冒一个没名字的点，用户只会问「这是啥」
+        filter:["case",["<",["zoom"],8],["!=",["get","n"],""],true],
         paint:{"circle-radius":["interpolate",["linear"],["zoom"],6,2,12,4],
                "circle-color":"#B4451F","circle-stroke-color":"#fff","circle-stroke-width":1}},
+      // 车站。OSM 里全区 62,554 个（其中 56,579 个有名字，90%）。
+      // 日本不在这一层里——日本用 N02 那份（有事業者、有乗降客数），比 OSM 准。
+      {id:"etr-station",source:"etr","source-layer":"station",type:"circle",minzoom:9,layout:{visibility:"none"},
+        paint:{"circle-radius":["interpolate",["linear"],["zoom"],9,1.8,15,4.2],
+               "circle-color":"#fff",
+               "circle-stroke-color":["match",["get","k"],"sub","#C2410C","lrt","#8D6E63","#37474F"],
+               "circle-stroke-width":["interpolate",["linear"],["zoom"],9,1,15,1.5]}},
       // 交通标注排在行政标注前面：避让时先给駅名/空港名占位
       // ── 标注 ──
       // 一级行政区的标注点放在**它自己的県庁所在地/首府**上（pipeline/build_caps.py），
@@ -548,6 +566,12 @@ const map=new maplibregl.Map({
                 ["case",["<",["zoom"],10],["==",["get","k"],"intl"],true]],
         paint:{"text-color":["match",["get","k"],"intl","#3B2E5A","mil","#5B5040","#6B6480"],
           "text-halo-color":"#fff","text-halo-width":1.5}},
+      {id:"etr-station-lab",source:"etr","source-layer":"station",type:"symbol",minzoom:11,
+        layout:{visibility:"none","text-field":["get","n"],"text-font":["NotoSansJP Regular"],
+          "text-size":["interpolate",["linear"],["zoom"],11,9.5,15,12],"text-optional":true,
+          "text-variable-anchor":["top","bottom","left","right"],"text-radial-offset":0.55},
+        filter:["!=",["get","n"],""],
+        paint:{"text-color":"#26343F","text-halo-color":"#fff","text-halo-width":1.4}},
       {id:"etr-port-lab",source:"etr","source-layer":"port",type:"symbol",minzoom:9,
         layout:{visibility:"none","text-field":["get","n"],"text-font":["NotoSansJP Regular"],
           "text-size":10,"text-optional":true,
@@ -676,15 +700,17 @@ const TR=["tr-ferry","tr-stationseg","tr-rail-other","tr-rail-s3","tr-rail-priv"
 // 東亜视图里日本仍旧用 N02 那份（分类更准），只是不画駅——
 // 別国那 21 份 OSM 提取包里没有駅，只画日本的駅会显得日本特别热闹，反而失衡。
 const TRJP=["tr-ferry","tr-rail-other","tr-rail-s3","tr-rail-priv","tr-rail-sub","tr-rail-jr",
-            "tr-rail-shin","tr-air","tr-air-lab"];
-const ETR=["etr-ferry","etr-rail-lrt","etr-rail-sub","etr-rail","etr-rail-hs","etr-air",
-           "etr-airpt","etr-port","etr-bc","etr-air-lab","etr-port-lab","etr-bc-lab"];
+            "tr-rail-shin","tr-air","tr-air-lab","tr-station","tr-station-lab"];
+const ETR=["etr-trunk","etr-motorway","etr-ferry","etr-rail-lrt","etr-rail-sub","etr-rail","etr-rail-hs",
+           "etr-air","etr-airpt","etr-port","etr-bc","etr-station",
+           "etr-air-lab","etr-station-lab","etr-port-lab","etr-bc-lab"];
 let transit=false;
 const TRLEG=[["#0B4F8A","新幹線"],["#2E7D32","JR在来線"],["#C2410C","地下鉄"],["#7B5EA7","民営鉄道"],
              ["#00838F","第三セクター"],["#8D6E63","軌道・モノレール・新交通"],["#5B4B8A","空港"],["#3E7CB1","定期旅客航路"]];
 const ETRLEG=[["#0B4F8A","高速鉄道"],["#2E7D32","鉄道"],["#C2410C","地下鉄"],["#8D6E63","軌道・モノレール"],
-              ["#5B4B8A","国際空港"],["#9A8FC0","国内・その他の空港"],["#3E7CB1","フェリー航路"],
-              ["#1F6F8B","港湾"],["#B4451F","国境検問所"]];
+              ["#37474F","駅"],["#5B4B8A","国際空港"],["#9A8FC0","国内・その他の空港"],
+              ["#3E7CB1","フェリー航路"],["#1F6F8B","港湾"],["#B4451F","国境検問所"],
+              ["#C46A28","高速道路"],["#D8A24A","一級道路"]];
 // 两个视图共用同一个「交通」按钮：現代日本用 N02 那套，東亜用 OSM 那套＋日本的 N02。
 function applyTransit(){
   const jp = transit && region==="jp";

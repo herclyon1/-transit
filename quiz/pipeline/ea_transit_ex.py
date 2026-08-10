@@ -62,9 +62,22 @@ def rd(p):
                 continue
 
 
+# 名字：中日港台的 OSM 里，本地 `name` 本来就是汉字，**不能因为有 name:en 就用英文**。
+# 上海地铁实测：很多站没有 name:zh，只有 name（汉中路）和 name:en（Hanzhong Road），
+# 先前的顺序 name:zh → name:en → name 把它们全写成了英文。
+# 规则：name:zh 最优；没有就看本地 name 里有没有汉字，有就用它；
+# 都没有（韩国是谚文、东南亚是拉丁/本地文字）再退英文——对中文读者英文比谚文有用。
+HAN_RE = re.compile(r"[\u3400-\u4DBF\u4E00-\u9FFF]")
+
+
 def nm(p, t):
-    return (t.get("name:zh") or t.get("name:zh-Hans") or t.get("name:ja")
-            or t.get("name:en") or p.get("name") or "")
+    zh = t.get("name:zh") or t.get("name:zh-Hans")
+    if zh:
+        return zh
+    loc = p.get("name") or ""
+    if HAN_RE.search(loc):
+        return loc
+    return t.get("name:ja") or t.get("name:en") or loc
 
 
 def glen(g):

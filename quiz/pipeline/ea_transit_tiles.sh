@@ -39,5 +39,15 @@ tippecanoe -o eatr.pmtiles -f -Z2 -z11 \
   -L'{"file":"ea_air.geojsonl","layer":"air","minzoom":7}' \
   -L'{"file":"ea_airpt.geojsonl","layer":"airpt","minzoom":3}' \
   -L'{"file":"ea_port.geojsonl","layer":"port","minzoom":5}' \
-  -L'{"file":"ea_bc.geojsonl","layer":"bc","minzoom":5}'
+  -L'{"file":"ea_bc.geojsonl","layer":"bc","minzoom":5}' \
+  -L'{"file":"ea_station.geojsonl","layer":"station","minzoom":8}'
 ls -l eatr.pmtiles | awk '{printf "eatr.pmtiles %.1f MB%s\n", $5/1048576, ($5>100*1024*1024?"  !! 超 GitHub 单文件 100MB":"")}'
+
+# 公路单独一个文件：加进去之后 eatr.pmtiles 会到 101.3MB，
+# 正好压在 GitHub 单文件 100MB 上限上。拆开之后两个都在 60MB 以内。
+tippecanoe -o eatr_road.pmtiles -f -Z4 -z11 \
+  --simplify-only-low-zooms --coalesce \
+  --drop-densest-as-needed --extend-zooms-if-still-dropping -q \
+  -L'{"file":"ea_motorway.geojsonl","layer":"motorway","minzoom":5}' \
+  -L'{"file":"ea_trunk.geojsonl","layer":"trunk","minzoom":7}'
+ls -l eatr_road.pmtiles | awk '{printf "eatr_road.pmtiles %.1f MB%s\n", $5/1048576, ($5>100*1024*1024?"  !! 超 100MB":"")}'
