@@ -558,9 +558,12 @@ const map=new maplibregl.Map({
       // 東亜也一样：标注点在各单元自己的首府上，圆点 = 首府位置。
       // OSM 里没有 place 节点的 25 个单元（马绍尔的环礁、新加坡的分区等）
       // 保留原来的代表点，cap 留空——不画圆点也不写首府名，不编造。
-      {id:"ea-cap",source:"ea","source-layer":"unitlab",type:"circle",minzoom:3,
+      // minzoom 必须是 2：切到東亜时默认落在 z2.6，写 3 的话首府圆点一个都不出，
+      // 用户一进来看到的就是「省会城市根本没标」。名字仍旧 z4 起——
+      // z2.6 那一屏 621 个首府名不可能排得下，但圆点排得下（实测不糊）。
+      {id:"ea-cap",source:"ea","source-layer":"unitlab",type:"circle",minzoom:2,
         filter:["!=",["get","cap"],""],layout:{visibility:"none"},
-        paint:{"circle-radius":["interpolate",["linear"],["zoom"],3,1.8,8,3.6],
+        paint:{"circle-radius":["interpolate",["linear"],["zoom"],2,1.4,3,1.8,8,3.6],
           "circle-color":"#243040","circle-stroke-color":"#fff","circle-stroke-width":1.1}},
       {id:"ea-sublab",source:"ea","source-layer":"sublab",type:"symbol",minzoom:8,
         layout:{visibility:"none","text-field":["get","n"],"text-font":["NotoSansJP Regular"],
