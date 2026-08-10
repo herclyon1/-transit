@@ -144,7 +144,7 @@ maplibregl.addProtocol("pmtiles",proto.tile);
 // 新文件同名同 URL，目录偏移全对不上，取回来的就是垃圾——表现为
 // 「标注还在、边界整片消失」，而且不报错。GitHub Pages 的 max-age 是 600s，
 // 手机上实测能吃到更久。加个查询串就当成新资源，一次性根治。
-const V="?v=20260810j";
+const V="?v=20260810k";
 const prefColor=["match",["get","reg"]]; REGIONS.forEach((_,i)=>prefColor.push(i,RC[i])); prefColor.push("#CCC");
 
 const map=new maplibregl.Map({
@@ -178,10 +178,10 @@ const map=new maplibregl.Map({
       // 東亜交通：OSM（21 个国家/地区的 Geofabrik 提取包 + 俄远东）。
       // 日本境内**不用**这一份——N02 的分类（新幹線/JR/民鉄/三セク）比 OSM 稳，
       // 所以東亜视图里的日本仍旧走上面那个 tr 源，两份拼起来正好不重不漏。
-      etr:{type:"vector",url:"pmtiles://eatr.pmtiles"+V},
+      etr:{type:"vector",url:"pmtiles://eatr.pmtiles"+V,maxzoom:11},
       // 高速/一級公路单独一个文件：并进 eatr.pmtiles 的话是 101.3MB，
       // 正好压在 GitHub 单文件 100MB 上限上，拆开之后 31MB + 71MB。
-      erd:{type:"vector",url:"pmtiles://eatr_road.pmtiles"+V},
+      erd:{type:"vector",url:"pmtiles://eatr_road.pmtiles"+V,maxzoom:11},
       lak:{type:"vector",url:"pmtiles://ea_lakes.pmtiles"+V},
       riv:{type:"vector",url:"pmtiles://ea_rivers.pmtiles"+V}},
     layers:[
@@ -547,10 +547,16 @@ const map=new maplibregl.Map({
           // 不写这一条的话谁被挤掉全看要素在瓦片里的顺序——实测 z12 的大阪一屏
           // 43 个駅名里没有難波（54 万人次/日），却有几百人的小站。
           "symbol-sort-key":["-",0,["coalesce",["get","pax"],0]]},
-        // lab=1 是每个駅的代表站台。不加这一条的话，難波会写出四遍
-        filter:["all",["==",["get","lab"],1],
-                ["case",["<",["zoom"],12],[">=",["get","rank"],3],
-                        ["<",["zoom"],13],[">=",["get","rank"],2],true]],
+        // z14 以下只写代表站台的名字（lab=1），否则一个難波要写四遍。
+        // z14 以上再多写一种：lab=2＝离代表站台 150m 以上的站台。
+        // 用户：「难波这块那个蓝色线的站点你不显示一下吗？反而那个枢纽有两个标签」
+        // 四つ橋線的なんば离御堂筋線 235m（z14 上 29px），值得单独写；
+        // 而心斎橋的两条线只隔几十米，写两遍就是上下叠两个「心斎橋」——那种 lab=0，不写。
+        // 全国符合 lab=2 的只有 152 个站台，都是真的隔得开的换乘站。
+        filter:["case",["<",["zoom"],12],["all",["==",["get","lab"],1],[">=",["get","rank"],3]],
+                       ["<",["zoom"],13],["all",["==",["get","lab"],1],[">=",["get","rank"],2]],
+                       ["<",["zoom"],14],["==",["get","lab"],1],
+                       [">=",["get","lab"],1]],
         paint:{"text-color":"#26343F","text-halo-color":"#fff","text-halo-width":1.4}},
       // 東亜交通的标注。国际空港 z5 起，国内空港要到 z9；港口和口岸 z9 起。
       // 名字优先取 OSM 的 name:zh，没有中文才退英文/本地名（见 pipeline/ea_transit_ex.py）。

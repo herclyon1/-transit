@@ -181,7 +181,7 @@ for i, q in enumerate(plats):
 
 # ── 定簇的 rank / 代表点 / 簇客流 ──
 out = open(S + "/tr_station_p.geojsonl", "w")
-nlab = 0
+nlab = nlab2 = 0
 for root, idx in clus.items():
     rank = len({(plats[i]["op"], plats[i]["ln"]) for i in idx})
     tot = sum(plats[i]["pax"] for i in idx)
@@ -192,14 +192,25 @@ for root, idx in clus.items():
               -math.hypot((plats[i]["x"] - cx) * KX, (plats[i]["y"] - cy) * KY)))
     ops = "、".join(sorted({plats[i]["op"] for i in idx}))[:60]
     lns = "、".join(sorted({plats[i]["ln"] for i in idx}))[:80]
+    rx, ry = plats[rep]["x"], plats[rep]["y"]
     for i in idx:
+        # lab=1 代表站台（低缩放只写它）；lab=2 离代表站台够远、放大后值得单独写名字；
+        # lab=0 贴着代表站台，永远不写——不然心斎橋（御堂筋線和長堀鶴見緑地線只隔几十米）
+        # 会上下叠两个「心斎橋」，正是用户说的「那个枢纽有两个标签」。
+        # 150m 这条线：z14 上约 18 屏幕像素，刚好够两个标注不打架；
+        # 難波的四つ橋線离御堂筋線 235m（29px）在线上，心斎橋那种几十米的在线下。
+        d = math.hypot((plats[i]["x"] - rx) * KX, (plats[i]["y"] - ry) * KY)
         p = {"n": plats[i]["n"], "rank": rank,
-             "lab": 1 if i == rep else 0,
+             "lab": 1 if i == rep else (2 if d >= 0.15 else 0),
              "ln": lns if i == rep else plats[i]["ln"],
              "op": ops if i == rep else plats[i]["op"]}
         if i == rep:
             p["pax"] = tot
             nlab += 1
+        elif p["lab"] == 2:
+            nlab2 += 1
+            if plats[i]["pax"]:
+                p["pax"] = plats[i]["pax"]
         elif plats[i]["pax"]:
             p["pax"] = plats[i]["pax"]
         out.write(json.dumps({"type": "Feature", "properties": p,
@@ -224,7 +235,8 @@ for r in recs:
                           "geometry": r["geom"]}, ensure_ascii=False) + "\n")
     ns += 1
 seg.close()
-print("写出：站台点 %d（其中带名字的 %d）、駅範囲线段 %d" % (len(plats), nlab, ns))
+print("写出：站台点 %d（代表点 %d、放大后另标的 %d）、駅範囲线段 %d"
+      % (len(plats), nlab, nlab2, ns))
 
 tot = sum(q["pax"] for q in plats)
 hit = sum(1 for q in plats if q["pax"])
