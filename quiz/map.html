@@ -464,8 +464,12 @@ const map=new maplibregl.Map({
         // 不够用；等東亜那批数据到位再按 OSM 的 aerodrome:type=international 统一分。
         paint:{"text-color":["match",["get","kind"],"chiho","#6B6480","#3B2E5A"],
           "text-halo-color":"#fff","text-halo-width":1.5,
-          "text-opacity":["case",["==",["get","kind"],"chiho"],
-            ["interpolate",["linear"],["zoom"],7.5,0,8.2,1],1]}},
+          // ["zoom"] 只能当最外层 step/interpolate 的输入，套在 case 里面
+          // MapLibre 会**整份样式报错**（layers[60].paint.text-opacity），
+          // 结果是整张图一个图层都不加载、白屏。所以把 case 挪到输出侧。
+          "text-opacity":["interpolate",["linear"],["zoom"],
+            7.5,["case",["==",["get","kind"],"chiho"],0,1],
+            8.2,1]}},
       {id:"tr-station-lab",source:"tr","source-layer":"station",type:"symbol",minzoom:11,layout:{visibility:"none",
           "text-field":["get","n"],"text-font":["NotoSansJP Regular"],
           "text-size":["interpolate",["linear"],["zoom"],11,9.5,15,12],
