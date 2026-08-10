@@ -138,6 +138,12 @@ const muniOf=p=>{
 
 const proto=new pmtiles.Protocol();
 maplibregl.addProtocol("pmtiles",proto.tile);
+// 瓦片版本号。**重切瓦片后必须改这里**：
+// pmtiles 是按字节范围取的，浏览器/CDN 把旧文件的某段范围缓存住之后，
+// 新文件同名同 URL，目录偏移全对不上，取回来的就是垃圾——表现为
+// 「标注还在、边界整片消失」，而且不报错。GitHub Pages 的 max-age 是 600s，
+// 手机上实测能吃到更久。加个查询串就当成新资源，一次性根治。
+const V="?v=20260810b";
 const prefColor=["match",["get","reg"]]; REGIONS.forEach((_,i)=>prefColor.push(i,RC[i])); prefColor.push("#CCC");
 
 const map=new maplibregl.Map({
@@ -147,17 +153,17 @@ const map=new maplibregl.Map({
     // 不是整套中日文字库——整套要上百 MB，这样只有 10MB。
     glyphs:"glyphs/{fontstack}/{range}.pbf",
     sources:{
-      jp :{type:"vector",url:"pmtiles://jp.pmtiles"},
+      jp :{type:"vector",url:"pmtiles://jp.pmtiles"+V},
       // 町丁・字等按地方拆成 4 份：整份 z14 有 225MB，超 GitHub 单文件 100MB 上限。
       // 拆开后每份 30~71MB，且不必牺牲最高层级的细节。视口只会取用到的那一份。
-      choA:{type:"vector",url:"pmtiles://ka_a.pmtiles"},
-      choB:{type:"vector",url:"pmtiles://ka_b.pmtiles"},
-      choC:{type:"vector",url:"pmtiles://ka_c.pmtiles"},
-      choD:{type:"vector",url:"pmtiles://ka_d.pmtiles"},
+      choA:{type:"vector",url:"pmtiles://ka_a.pmtiles"+V},
+      choB:{type:"vector",url:"pmtiles://ka_b.pmtiles"+V},
+      choC:{type:"vector",url:"pmtiles://ka_c.pmtiles"+V},
+      choD:{type:"vector",url:"pmtiles://ka_d.pmtiles"+V},
       // 町丁名的标注点单独一份：23 万个点，塞回 ka_* 要重切 615MB 的面数据，
       // 单独切只要 21MB，而且面数据一个字节都不用动。
-      chol:{type:"vector",url:"pmtiles://cholab.pmtiles"},
-      ea :{type:"vector",url:"pmtiles://ea_units.pmtiles"},
+      chol:{type:"vector",url:"pmtiles://cholab.pmtiles"+V},
+      ea :{type:"vector",url:"pmtiles://ea_units.pmtiles"+V},
       // 底图：国土地理院タイル（官方、允许引用，日本境内覆盖最好）。
       // 只在需要时才挂上——不挂就一个瓦片都不请求。
       gsi_pale :{type:"raster",tiles:["https://cyberjapandata.gsi.go.jp/xyz/pale/{z}/{x}/{y}.png"],
@@ -167,9 +173,9 @@ const map=new maplibregl.Map({
       gsi_relief:{type:"raster",tiles:["https://cyberjapandata.gsi.go.jp/xyz/relief/{z}/{x}/{y}.png"],
                  tileSize:256,maxzoom:15,attribution:"地理院タイル"},
       // 公共交通：国土数値情報（国土交通省）N02-24 鉄道 / C28-21 空港 / N09-12 定期旅客航路
-      tr :{type:"vector",url:"pmtiles://transit.pmtiles"},
-      lak:{type:"vector",url:"pmtiles://ea_lakes.pmtiles"},
-      riv:{type:"vector",url:"pmtiles://ea_rivers.pmtiles"}},
+      tr :{type:"vector",url:"pmtiles://transit.pmtiles"+V},
+      lak:{type:"vector",url:"pmtiles://ea_lakes.pmtiles"+V},
+      riv:{type:"vector",url:"pmtiles://ea_rivers.pmtiles"+V}},
     layers:[
       {id:"bg",type:"background",paint:{"background-color":"#DCEBF5"}},
       // 底图三选一，默认全关。开着的时候行政区填色会自动变半透明让底图透出来。
