@@ -452,12 +452,20 @@ const map=new maplibregl.Map({
       // 各画一个标注——那覇空港横跨 3 个瓦片，于是出现三个「那覇空港」（用户报的）。
       {id:"tr-air-lab",source:"tr","source-layer":"airlab",type:"symbol",minzoom:6,layout:{visibility:"none",
           "text-field":["get","n"],"text-font":["NotoSansJP Regular"],
-          "text-size":["interpolate",["linear"],["zoom"],6,9.5,11,13],"text-optional":true,
+          "text-size":["interpolate",["linear"],["zoom"],6,
+            ["case",["==",["get","kind"],"chiho"],8,9.5],11,
+            ["case",["==",["get","kind"],"chiho"],10.5,13]],"text-optional":true,
           "text-variable-anchor":["top","bottom","left","right"],"text-radial-offset":0.6},
-        // kind=ru 是北方領土上的三个俄方机场（OSM），也要给名字——
-        // 用户报「北方領土缺失交通元素」，只画个色块不写名字等于没画。
-        filter:["match",["get","kind"],["kokusai","kyoten","ru"],true,false],
-        paint:{"text-color":"#3B2E5A","text-halo-color":"#fff","text-halo-width":1.5}},
+        // 全部 97 个空港都写名字，按 C28 的官方分类分轻重：
+        //   拠点空港（会社管理/国管理/特定地方管理，29 个）粗、深、z6 起
+        //   地方管理空港（68 个）细、浅、z8 起才出，免得低缩放一屏全是小机场
+        //   kind=ru 是北方領土上的三个俄方机场（OSM）
+        // 「国际/国内」这条分类 C28 里没有，OSM 在日本也只给了 2 个机场打标，
+        // 不够用；等東亜那批数据到位再按 OSM 的 aerodrome:type=international 统一分。
+        paint:{"text-color":["match",["get","kind"],"chiho","#6B6480","#3B2E5A"],
+          "text-halo-color":"#fff","text-halo-width":1.5,
+          "text-opacity":["case",["==",["get","kind"],"chiho"],
+            ["interpolate",["linear"],["zoom"],7.5,0,8.2,1],1]}},
       {id:"tr-station-lab",source:"tr","source-layer":"station",type:"symbol",minzoom:11,layout:{visibility:"none",
           "text-field":["get","n"],"text-font":["NotoSansJP Regular"],
           "text-size":["interpolate",["linear"],["zoom"],11,9.5,15,12],
