@@ -187,10 +187,11 @@ const map=new maplibregl.Map({
       // ── 東亜 ──
       {id:"ea-fill",source:"ea","source-layer":"units",type:"fill",layout:{visibility:"none"},
         paint:{"fill-color":["match",["get","grp"],...EAC,"#ccc"]}},
-      // 東亜的 621 单元覆盖 27 个国家/地区，里头**没有日本**，所以切到東亜时
-      // 日本整个是个窟窿（只剩水体）。直接复用現代日本那份几何按国别上色补上。
-      {id:"ea-jp-fill",source:"jp","source-layer":"pref",type:"fill",layout:{visibility:"none"},
-        paint:{"fill-color":EAC[EAC.indexOf("JPN")+1]}},
+      // 東亜的 621 单元覆盖 27 个国家/地区，里头**没有日本**。日本不另做一份——
+      // 两个视图共用同一套 jp-* 图层（同一份 jp.pmtiles 的 pref 层），
+      // 切视图时只改 paint（填色：地方色 ↔ 日本国家代表色）和标注的 zoom 过滤。
+      // 以前是 ea-jp-fill / ea-jp-line / ea-jp-sel / ea-jp-disp / ea-jp-lab / ea-jp-cap
+      // 另起一套，样式各写各的，结果两个视图下的日本长得不一样（用户报的）。
       // 樺太（サハリン）と千島列島。どちらもロシア実効支配なので旗青で塗る。
       // 北方四島は disp 層で別に描いているので、ここからは差し引いてある
       //（同じ土地を二度描かない——README の赤線）。
@@ -198,17 +199,6 @@ const map=new maplibregl.Map({
         paint:{"fill-color":RUS,"fill-opacity":0.9}},
       {id:"ea-rus-line",source:"jp","source-layer":"rus",type:"line",layout:{visibility:"none"},
         paint:{"line-color":"#5f5348","line-width":["interpolate",["linear"],["zoom"],2,.4,10,.9]}},
-      {id:"ea-jp-disp",source:"jp","source-layer":"disp",type:"fill",layout:{visibility:"none"},
-        paint:{"fill-color":RUS,"fill-opacity":0.9}},
-      {id:"ea-jp-sel",source:"jp","source-layer":"pref",type:"line",layout:{visibility:"none"},
-        filter:["==",["get","code"],-1],paint:{"line-color":"#12263A","line-width":3}},
-      {id:"ea-jp-line",source:"jp","source-layer":"pref",type:"line",layout:{visibility:"none"},
-        paint:{"line-color":"#5f5348","line-width":["interpolate",["linear"],["zoom"],2,.4,10,.9]}},
-      {id:"ea-water",source:"lak","source-layer":"water",type:"fill",minzoom:3,layout:{visibility:"none"},
-        paint:{"fill-color":"#bcd8ec","fill-outline-color":"#9dc2dd"}},
-      {id:"ea-riv",source:"riv","source-layer":"rivers",type:"line",minzoom:5,layout:{visibility:"none"},
-        paint:{"line-color":"#9dc2dd","line-opacity":["interpolate",["linear"],["zoom"],5,.35,8,.9],
-               "line-width":["interpolate",["linear"],["zoom"],5,.4,10,1.4]}},
       {id:"ea-line",source:"ea","source-layer":"units",type:"line",layout:{visibility:"none"},
         paint:{"line-color":"#5f5348","line-width":["interpolate",["linear"],["zoom"],2,.4,10,.9]}},
       {id:"ea-sel",source:"ea","source-layer":"units",type:"line",layout:{visibility:"none"},
@@ -303,16 +293,15 @@ const map=new maplibregl.Map({
         paint:{"fill-color":RUS,"fill-opacity":0.9}},
       {id:"jp-disp",source:"jp","source-layer":"disp",type:"line",
         paint:{"line-color":"#8a3f3f","line-width":1.6,"line-dasharray":[2,1.5]}},
-      // 湖沼・河川。跟東亜那两层同源（ea_lakes / ea_rivers），只是要画在行政区填色**之上**，
-      // 所以在这里再挂一份而不是复用上面 ea- 的那两层——图层顺序是画顺序，
-      // 挂在上面那个位置会被 jp-fill 整个盖住。
-      // 之前現代日本视图一个水体都没有：琵琶湖・霞ヶ浦・猪苗代湖 全被県的填色盖着，
-      // 北方領土也一样。用户报的「北方領土缺失水体」就是这条。
-      {id:"jp-water",source:"lak","source-layer":"water",type:"fill",minzoom:5,
+      // 湖沼・河川。**全图只有这一份**，两个视图共用（原来東亜另有 ea-water/ea-riv 一套）。
+      // 位置必须在行政区填色**之上**——图层顺序就是画顺序，挂在東亜那批里会被 jp-fill 盖掉，
+      // 那正是「現代日本视图一个水体都没有」的原因：琵琶湖・霞ヶ浦・猪苗代湖 和北方領土
+      // 全被県的填色压着。
+      {id:"water",source:"lak","source-layer":"water",type:"fill",minzoom:3,
         paint:{"fill-color":"#bcd8ec","fill-outline-color":"#9dc2dd"}},
-      {id:"jp-riv",source:"riv","source-layer":"rivers",type:"line",minzoom:7,
-        paint:{"line-color":"#9dc2dd","line-opacity":["interpolate",["linear"],["zoom"],7,.35,10,.9],
-               "line-width":["interpolate",["linear"],["zoom"],7,.4,12,1.4]}},
+      {id:"riv",source:"riv","source-layer":"rivers",type:"line",minzoom:5,
+        paint:{"line-color":"#9dc2dd","line-opacity":["interpolate",["linear"],["zoom"],5,.35,9,.9],
+               "line-width":["interpolate",["linear"],["zoom"],5,.4,12,1.4]}},
 
 
       // ── 公共交通（默认关，按钮开）──
@@ -353,44 +342,45 @@ const map=new maplibregl.Map({
                "circle-color":"#fff","circle-stroke-color":"#37474F",
                "circle-stroke-width":["interpolate",["linear"],["zoom"],9,1,15,1.4]}},
       // 交通标注排在行政标注前面：避让时先给駅名/空港名占位
-      {id:"tr-air-lab",source:"tr","source-layer":"air",type:"symbol",minzoom:6,layout:{visibility:"none",
-          "text-field":["get","n"],"text-font":["NotoSansJP Regular"],
-          "text-size":["interpolate",["linear"],["zoom"],6,9.5,11,13],"text-optional":true,
-          "text-variable-anchor":["top","bottom","left","right"],"text-radial-offset":0.6},
-        // kind=ru 是北方領土上的三个俄方机场（OSM），也要给名字——
-        // 用户报「北方領土缺失交通元素」，只画个色块不写名字等于没画。
-        filter:["match",["get","kind"],["kokusai","kyoten","ru"],true,false],
-        paint:{"text-color":"#3B2E5A","text-halo-color":"#fff","text-halo-width":1.5}},
-      {id:"tr-station-lab",source:"tr","source-layer":"station",type:"symbol",minzoom:11,layout:{visibility:"none",
-          "text-field":["get","n"],"text-font":["NotoSansJP Regular"],
-          "text-size":["interpolate",["linear"],["zoom"],11,9.5,15,12],
-          "text-optional":true,"text-variable-anchor":["top","bottom","left","right"],"text-radial-offset":0.55},
-        filter:["case",["<",["zoom"],12],[">=",["get","rank"],3],
-                       ["<",["zoom"],13],[">=",["get","rank"],2],true],
-        paint:{"text-color":"#26343F","text-halo-color":"#fff","text-halo-width":1.4}},
       // ── 标注 ──
       // 一级行政区的标注点放在**它自己的県庁所在地/首府**上（pipeline/build_caps.py），
       // 不再用多边形代表点——京都府、兵庫県、新疆这种细长或形状怪的单元，
       // 代表点会落在离任何城市都很远的地方，用户实测截图里就是这个毛病。
       // 一个点画三样：上方行政区名、中间一个圆点（首府位置）、下方首府名。
-      {id:"jp-cap",source:"jp","source-layer":"preflab",type:"circle",minzoom:4,maxzoom:10,
+      {id:"jp-cap",source:"jp","source-layer":"preflab",type:"circle",minzoom:3,
         filter:["!=",["get","cap"],""],
         paint:{"circle-radius":["interpolate",["linear"],["zoom"],4,2,9,3.6],
           "circle-color":"#243040","circle-stroke-color":"#fff","circle-stroke-width":1.1}},
-      // 都道府県名：全程可见；放大到 z8 之后让位给市町村名
-      {id:"jp-lab",source:"jp","source-layer":"preflab",type:"symbol",maxzoom:9,
-        layout:{"text-field":["get","n"],"text-font":["NotoSansJP Regular"],
-          "text-size":["interpolate",["linear"],["zoom"],4,8.5,6,11,9,15],
-          "text-allow-overlap":false,"text-padding":0,"text-optional":true,
-          "text-anchor":"bottom","text-offset":[0,-0.5]},
-        paint:{"text-color":"#243040","text-halo-color":"#fff","text-halo-width":1.4}},
-      // 県庁所在地名：z5 起。z8 之后市町村名层已经把它画出来了，这里就收掉，不重复。
-      {id:"jp-caplab",source:"jp","source-layer":"preflab",type:"symbol",minzoom:5,maxzoom:8.2,
+      // 注意图层顺序：MapLibre 的符号避让是**从最后一个图层往前**放置的，
+      // 也就是**越靠后的图层优先级越高**。所以「県庁所在地名」必须写在
+      // 「都道府県名」**前面**，否则大津市的标注会先占位、把滋賀県挤掉——
+      // 实测就是这个现象（用户报的「滋贺县和京都挤到一起导致无法正常显示」）。
+      // 県庁所在地名：現代日本视图 z8 之后市町村名层已经把它画出来了，就收掉不重复。
+      {id:"jp-caplab",source:"jp","source-layer":"preflab",type:"symbol",minzoom:4,
         filter:["!=",["get","cap"],""],
         layout:{"text-field":["get","cap"],"text-font":["NotoSansJP Regular"],
           "text-size":["interpolate",["linear"],["zoom"],5,8.5,8,11],"text-optional":true,
-          "text-anchor":"top","text-offset":[0,0.45],"text-padding":1},
+          "text-variable-anchor":["top","right","left","bottom","top-left","top-right","bottom-left","bottom-right"],
+          "text-justify":"auto","text-radial-offset":0.5,"text-padding":1},
         paint:{"text-color":"#5D6874","text-halo-color":"#fff","text-halo-width":1.3}},
+      // 都道府県名。可变锚点是必须的：京都市 135.768 和大津市 135.855 只隔 8km，
+      // 两个県的标注都钉在自己的首府上，固定锚点在 z8 以下必然撞车，
+      // MapLibre 只会丢掉其中一个——用户看到的正是「滋賀県不见了」。
+      // 给一圈候选位置，撞了就往旁边挪，而不是整个丢掉。
+      // 上下界不写 maxzoom，改由 setRegion 用 filter 控：
+      // 現代日本视图 z9 之后让位给市町村名，東亜视图下面没有更细的层就一直留着。
+      // 必须用 filter 不能用透明度——透明度 0 的标注仍然占避让位置，会把市町村名挤掉。
+      {id:"jp-lab",source:"jp","source-layer":"preflab",type:"symbol",
+        layout:{"text-field":["get","n"],"text-font":["NotoSansJP Regular"],
+          "text-size":["interpolate",["linear"],["zoom"],4,8.5,6,11,9,15],
+          "text-allow-overlap":false,"text-padding":0,"text-optional":true,
+          // 8 个候选位置 + justify auto，而且**先上下、后斜角、最后才左右**。
+          // 京都市 135.768 与大津市 135.855 只隔 8km：把左右排在前面，京都府会先占住
+          // 右边那块，正好压在大津市头上，滋賀県就再也放不下了（实测 z7.2 就是这样）。
+          // 先试上下就能把横向空间让出来。只给 4 个候选也不够，必须给满 8 个。
+          "text-variable-anchor":["bottom","top","bottom-left","bottom-right","top-left","top-right","left","right"],
+          "text-justify":"auto","text-radial-offset":0.55},
+        paint:{"text-color":"#243040","text-halo-color":"#fff","text-halo-width":1.4}},
       // 市町村名：z8 起，z13 之后让位给町丁名
       {id:"jp-lab-muni",source:"jp","source-layer":"munilab",type:"symbol",minzoom:8,
         layout:{"text-field":["get","n"],"text-font":["NotoSansJP Regular"],
@@ -417,6 +407,23 @@ const map=new maplibregl.Map({
         paint:{"text-color":"#5D6874","text-halo-color":"#fff","text-halo-width":1.25,
           "text-opacity":["interpolate",["linear"],["zoom"],13,0.85,14.5,1]}},
       // 争议/分歧范围的说明文字 —— 之前只有虚线看不懂，这条补上
+      // 交通的标注排在町丁名**之后**：越靠后优先级越高，駅名/空港名先占位，
+      // 町丁名让位。放在前面的话正好反过来，一屏几百个町丁名会把站名全淹掉。
+      {id:"tr-air-lab",source:"tr","source-layer":"air",type:"symbol",minzoom:6,layout:{visibility:"none",
+          "text-field":["get","n"],"text-font":["NotoSansJP Regular"],
+          "text-size":["interpolate",["linear"],["zoom"],6,9.5,11,13],"text-optional":true,
+          "text-variable-anchor":["top","bottom","left","right"],"text-radial-offset":0.6},
+        // kind=ru 是北方領土上的三个俄方机场（OSM），也要给名字——
+        // 用户报「北方領土缺失交通元素」，只画个色块不写名字等于没画。
+        filter:["match",["get","kind"],["kokusai","kyoten","ru"],true,false],
+        paint:{"text-color":"#3B2E5A","text-halo-color":"#fff","text-halo-width":1.5}},
+      {id:"tr-station-lab",source:"tr","source-layer":"station",type:"symbol",minzoom:11,layout:{visibility:"none",
+          "text-field":["get","n"],"text-font":["NotoSansJP Regular"],
+          "text-size":["interpolate",["linear"],["zoom"],11,9.5,15,12],
+          "text-optional":true,"text-variable-anchor":["top","bottom","left","right"],"text-radial-offset":0.55},
+        filter:["case",["<",["zoom"],12],[">=",["get","rank"],3],
+                       ["<",["zoom"],13],[">=",["get","rank"],2],true],
+        paint:{"text-color":"#26343F","text-halo-color":"#fff","text-halo-width":1.4}},
       {id:"jp-lab-disp",source:"jp","source-layer":"displab",type:"symbol",
         layout:{"text-field":["concat",["get","dn"],"\n",["get","note"]],
           "text-font":["NotoSansJP Regular"],"text-size":11,"text-max-width":11,
@@ -430,29 +437,23 @@ const map=new maplibregl.Map({
         filter:["!=",["get","cap"],""],layout:{visibility:"none"},
         paint:{"circle-radius":["interpolate",["linear"],["zoom"],3,1.8,8,3.6],
           "circle-color":"#243040","circle-stroke-color":"#fff","circle-stroke-width":1.1}},
-      {id:"ea-jp-cap",source:"jp","source-layer":"preflab",type:"circle",minzoom:5,
-        filter:["!=",["get","cap"],""],layout:{visibility:"none"},
-        paint:{"circle-radius":["interpolate",["linear"],["zoom"],5,1.8,8,3.6],
-          "circle-color":"#243040","circle-stroke-color":"#fff","circle-stroke-width":1.1}},
-      {id:"ea-lab",source:"ea","source-layer":"unitlab",type:"symbol",layout:{visibility:"none",
-          "text-field":["get","n"],"text-font":["NotoSansJP Regular"],
-          "text-size":["interpolate",["linear"],["zoom"],2,9,7,14],"text-padding":2,
-          "text-anchor":"bottom","text-offset":[0,-0.45],"text-optional":true},
-        paint:{"text-color":"#243040","text-halo-color":"#fff","text-halo-width":1.4}},
       {id:"ea-caplab",source:"ea","source-layer":"unitlab",type:"symbol",minzoom:4,
         filter:["!=",["get","cap"],""],layout:{visibility:"none",
           "text-field":["get","cap"],"text-font":["NotoSansJP Regular"],
           "text-size":["interpolate",["linear"],["zoom"],4,8,8,11.5],"text-padding":1,
-          "text-anchor":"top","text-offset":[0,0.4],"text-optional":true},
+          "text-variable-anchor":["top","right","left","bottom","top-left","top-right","bottom-left","bottom-right"],
+          "text-justify":"auto","text-radial-offset":0.45,"text-optional":true},
         paint:{"text-color":"#5D6874","text-halo-color":"#fff","text-halo-width":1.3}},
+      {id:"ea-lab",source:"ea","source-layer":"unitlab",type:"symbol",layout:{visibility:"none",
+          "text-field":["get","n"],"text-font":["NotoSansJP Regular"],
+          "text-size":["interpolate",["linear"],["zoom"],2,9,7,14],"text-padding":2,
+          "text-variable-anchor":["bottom","top","bottom-left","bottom-right","top-left","top-right","left","right"],
+          "text-justify":"auto","text-radial-offset":0.5,"text-optional":true},
+        paint:{"text-color":"#243040","text-halo-color":"#fff","text-halo-width":1.4}},
       {id:"ea-rus-lab",source:"jp","source-layer":"ruslab",type:"symbol",layout:{visibility:"none",
           "text-field":["get","n"],"text-font":["NotoSansJP Regular"],
           "text-size":["interpolate",["linear"],["zoom"],2,9,7,14],"text-padding":2},
         paint:{"text-color":"#F4F6FA","text-halo-color":"#223C7E","text-halo-width":1.4}},
-      {id:"ea-jp-lab",source:"jp","source-layer":"preflab",type:"symbol",layout:{visibility:"none",
-          "text-field":["get","n"],"text-font":["NotoSansJP Regular"],
-          "text-size":["interpolate",["linear"],["zoom"],2,9,7,14],"text-padding":2},
-        paint:{"text-color":"#243040","text-halo-color":"#fff","text-halo-width":1.4}},
       {id:"ea-lab-disp",source:"ea","source-layer":"displab",type:"symbol",layout:{visibility:"none",
           "text-field":["concat",["get","dn"],"\n",["get","note"]],
           "text-font":["NotoSansJP Regular"],"text-size":11,"text-max-width":11},
@@ -464,17 +465,37 @@ window.map=map;  // 供自动截图验收脚本使用
 map.touchZoomRotate.disableRotation();
 window.__map=map;
 
-const JP=["jp-fill","jp-cap","jp-caplab","jp-cho-fillA","jp-choA","jp-cho-fillB","jp-choB","jp-cho-fillC","jp-choC","jp-cho-fillD","jp-choD",
-  "jp-muni-fill","jp-muni","jp-ku-fill","jp-ku","jp-line","jp-sel","jp-selmA","jp-selmB","jp-selmC","jp-selmD","jp-selm","jp-selk",
-  "jp-selcA","jp-selcB","jp-selcC","jp-selcD","jp-disp-fill","jp-disp","jp-water","jp-riv",
-  "jp-lab","jp-lab-muni","jp-lab-ku","jp-lab-cho","jp-lab-disp"];
-const EA=["ea-fill","ea-cap","ea-caplab","ea-jp-cap","ea-rus","ea-rus-line","ea-jp-fill","ea-jp-disp","ea-jp-sel","ea-jp-line","ea-jp-lab","ea-rus-lab","ea-water","ea-riv","ea-line","ea-sel","ea-disp","ea-lab","ea-lab-disp"];
+const JP=["jp-cho-fillA","jp-choA","jp-cho-fillB","jp-choB","jp-cho-fillC","jp-choC","jp-cho-fillD","jp-choD",
+  "jp-muni-fill","jp-muni","jp-ku-fill","jp-ku","jp-selmA","jp-selmB","jp-selmC","jp-selmD","jp-selm","jp-selk",
+  "jp-selcA","jp-selcB","jp-selcC","jp-selcD",
+  "jp-lab-muni","jp-lab-ku","jp-lab-cho","jp-lab-disp"];
+const EA=["ea-fill","ea-cap","ea-caplab","ea-rus","ea-rus-line","ea-rus-lab",
+  "ea-line","ea-sel","ea-disp","ea-lab","ea-lab-disp"];
+// 日本这几层**两个视图共用**，永远可见，只靠 setRegion 改 paint / filter。
+// 以前東亜另有一整套 ea-jp-*，样式各写各的，于是两个视图下的日本长得不一样。
+const JPBOTH=["jp-fill","jp-line","jp-sel","jp-disp-fill","jp-disp",
+  "water","riv","jp-cap","jp-lab","jp-caplab"];
+const JPCOL=EAC[EAC.indexOf("JPN")+1];
 let region="jp";
 
 function setRegion(r){
   region=r;
   JP.forEach(id=>map.setLayoutProperty(id,"visibility",r==="jp"?"visible":"none"));
   EA.forEach(id=>map.setLayoutProperty(id,"visibility",r==="ea"?"visible":"none"));
+  // 日本只有一份几何、一套图层，两个视图的差别就下面这几行。
+  JPBOTH.forEach(id=>map.setLayoutProperty(id,"visibility","visible"));
+  map.setPaintProperty("jp-fill","fill-color", r==="jp"?prefColor:JPCOL);
+  map.setPaintProperty("jp-line","line-color", r==="jp"?"#2B3742":"#5f5348");
+  map.setPaintProperty("jp-line","line-width", r==="jp"
+    ?["interpolate",["linear"],["zoom"],4,.6,10,1.8]
+    :["interpolate",["linear"],["zoom"],2,.4,10,.9]);
+  // z8 起市町村名接手：県名和県庁所在地名同时收掉，交接干净。
+  // 留到 z9 的话 z8~9 这一段两层打架，谁被挤掉全看运气——滋賀県就是这么消失的。
+  map.setFilter("jp-lab",    r==="jp"?["<",["zoom"],8]:null);
+  map.setFilter("jp-caplab", r==="jp"?["all",["!=",["get","cap"],""],["<",["zoom"],8]]
+                                     :["!=",["get","cap"],""]);
+  map.setFilter("jp-cap",    r==="jp"?["all",["!=",["get","cap"],""],["<",["zoom"],10]]
+                                     :["!=",["get","cap"],""]);
   document.getElementById("b-jp").classList.toggle("on",r==="jp");
   document.getElementById("b-ea").classList.toggle("on",r==="ea");
   const _c=document.getElementById("card"); _c.style.display="none"; _c.classList.remove("on");
@@ -492,11 +513,11 @@ function setBase(b){
   ["pale","photo","relief"].forEach(x=>
     map.setLayoutProperty("base-"+x,"visibility", x===b?"visible":"none"));
   const op = b==="none" ? 1 : (b==="photo" ? 0.30 : 0.42);
-  ["jp-fill","ea-fill","ea-jp-fill"].forEach(id=>map.setPaintProperty(id,"fill-opacity",op));
+  ["jp-fill","ea-fill"].forEach(id=>map.setPaintProperty(id,"fill-opacity",op));
   // 底图自带水体，我们那份就别叠了
-  ["ea-water","ea-riv"].forEach(id=>map.setPaintProperty(id,
-    id==="ea-water"?"fill-opacity":"line-opacity",
-    b==="none" ? (id==="ea-water"?1:["interpolate",["linear"],["zoom"],5,.35,8,.9]) : 0));
+  ["water","riv"].forEach(id=>map.setPaintProperty(id,
+    id==="water"?"fill-opacity":"line-opacity",
+    b==="none" ? (id==="water"?1:["interpolate",["linear"],["zoom"],5,.35,9,.9]) : 0));
   document.querySelectorAll("#tools button[data-b]").forEach(el=>el.classList.toggle("on",el.dataset.b===b));
 }
 document.querySelectorAll("#tools button[data-b]").forEach(el=>el.onclick=()=>setBase(el.dataset.b));
@@ -566,11 +587,11 @@ map.on("click",e=>{
   // 北方領土画在单独的 disp 层里，不在任何一个 fill 层里——原来没挂进命中层，
   // 于是点它完全没反馈（用户报的 bug）。两个视图各自的 disp 填充层都要挂上。
   const hitLayers = region==="jp" ? [fillId,"jp-disp-fill"]
-                                  : [fillId,"ea-jp-fill","ea-rus","ea-jp-disp"];
+                                  : [fillId,"jp-fill","ea-rus","jp-disp-fill"];
   const hit=map.queryRenderedFeatures(e.point,{layers:hitLayers})[0];
   if(!hit){ map.setFilter(selId, region==="jp"?["==",["get","code"],-1]:["==",["get","n"],"\u0000"]);
             if(region==="jp") ["jp-selm","jp-selk","jp-selmA","jp-selmB","jp-selmC","jp-selmD","jp-selcA","jp-selcB","jp-selcC","jp-selcD"].forEach(id=>map.setFilter(id,["==",["get","n"],"\u0000"]));
-            else map.setFilter("ea-jp-sel",["==",["get","code"],-1]);
+            else map.setFilter("jp-sel",["==",["get","code"],-1]);
             c.style.display="none"; c.classList.remove("on"); document.body.classList.remove("carded");
             document.getElementById("hint").style.display=""; return; }
   const p=hit.properties, d=map.queryRenderedFeatures(e.point,{layers:[dispId]})[0];
@@ -579,7 +600,7 @@ map.on("click",e=>{
     // 北方領土。填色按实际管理走（俄罗斯），卡片两边立场都写上。
     map.setFilter(selId, region==="jp"?["==",["get","code"],-1]:["==",["get","n"],"\u0000"]);
     if(region==="jp") ["jp-selm","jp-selk","jp-selmA","jp-selmB","jp-selmC","jp-selmD","jp-selcA","jp-selcB","jp-selcC","jp-selcD"].forEach(id=>map.setFilter(id,["==",["get","n"],"\u0000"]));
-    else map.setFilter("ea-jp-sel",["==",["get","code"],-1]);
+    else map.setFilter("jp-sel",["==",["get","code"],-1]);
     html=`<div class="n">${p.dn}</div><div class="sub">実効支配：ロシア連邦 サハリン州</div>`;
     if(p.note) html+=`<div class="disp">${p.note}</div>`;
   }else if(region==="jp"){
@@ -636,16 +657,17 @@ map.on("click",e=>{
       html+=`<div class="sub" style="color:#8a3f3f">${dd.properties.dn}：${dd.properties.note}</div>`;
   }else if(p.de_facto==="RUS"){
     map.setFilter(selId,["==",["get","n"],"\u0000"]);
-    map.setFilter("ea-jp-sel",["==",["get","code"],-1]);
+    map.setFilter("jp-sel",["==",["get","code"],-1]);
     html=`<div class="n">${p.n}</div><div class="sub">${p.note||""}</div>`;
   }else if(p.grp!==undefined){
     map.setFilter(selId,["==",["get","n"],p.n]);
+    map.setFilter("jp-sel",["==",["get","code"],-1]);
     html=`<div class="n">${p.n}</div><div class="sub">${p.grp}</div>`;
     if(p.cap) html+=`<div class="sub">首府：${p.cap}</div>`;
   }else{
     // 命中的是東亜视图里的日本（属性来自 pref 层，没有 grp）
     map.setFilter(selId,["==",["get","n"],"\u0000"]);
-    map.setFilter("ea-jp-sel",["==",["get","code"],p.code]);
+    map.setFilter("jp-sel",["==",["get","code"],p.code]);
     html=`<div class="n">${p.n}</div><div class="sub">日本　県庁：${p.cap}　地方：${p.regn}</div>`;
   }
   if(!p.dn && d&&d.properties&&d.properties.note)
