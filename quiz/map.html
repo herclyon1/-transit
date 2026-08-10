@@ -144,7 +144,7 @@ maplibregl.addProtocol("pmtiles",proto.tile);
 // 新文件同名同 URL，目录偏移全对不上，取回来的就是垃圾——表现为
 // 「标注还在、边界整片消失」，而且不报错。GitHub Pages 的 max-age 是 600s，
 // 手机上实测能吃到更久。加个查询串就当成新资源，一次性根治。
-const V="?v=20260810g";
+const V="?v=20260810h";
 const prefColor=["match",["get","reg"]]; REGIONS.forEach((_,i)=>prefColor.push(i,RC[i])); prefColor.push("#CCC");
 
 const map=new maplibregl.Map({
@@ -372,10 +372,16 @@ const map=new maplibregl.Map({
         layout:{visibility:"none","line-cap":"round"},
         paint:{"line-color":"#1B2433","line-width":["interpolate",["linear"],["zoom"],13,3,15,7],
                "line-opacity":.85}},
+      // 站点分两个阶段（用户：「我的藍線難波，被弄到哪裡去了？」）：
+      //   z13 以下只画代表点（lab=1），一个駅一个点，不会又变成一堆重叠的点；
+      //   z13 以上每条路線各画各的站台——難波在四つ橋線上比御堂筋線偏西 235m，
+      //   那是实打实的另一个站厅，合并掉的话蓝线上就空了一段。
+      // 名字**永远只写在代表点上**，所以放大之后也不会冒出四个「難波」。
       {id:"tr-station",source:"tr","source-layer":"station",type:"circle",minzoom:9,layout:{visibility:"none"},
-        filter:["case",["<",["zoom"],10],[">=",["get","rank"],5],
-                       ["<",["zoom"],11],[">=",["get","rank"],3],
-                       ["<",["zoom"],12],[">=",["get","rank"],2],true],
+        filter:["case",["<",["zoom"],10],["all",["==",["get","lab"],1],[">=",["get","rank"],5]],
+                       ["<",["zoom"],11],["all",["==",["get","lab"],1],[">=",["get","rank"],3]],
+                       ["<",["zoom"],12],["all",["==",["get","lab"],1],[">=",["get","rank"],2]],
+                       ["<",["zoom"],13],["==",["get","lab"],1],true],
         paint:{"circle-radius":["interpolate",["linear"],["zoom"],9,2.2,12,2.6,15,4.2],
                "circle-color":"#fff","circle-stroke-color":"#37474F",
                "circle-stroke-width":["interpolate",["linear"],["zoom"],9,1,15,1.4]}},
@@ -518,9 +524,15 @@ const map=new maplibregl.Map({
       {id:"tr-station-lab",source:"tr","source-layer":"station",type:"symbol",minzoom:11,layout:{visibility:"none",
           "text-field":["get","n"],"text-font":["NotoSansJP Regular"],
           "text-size":["interpolate",["linear"],["zoom"],11,9.5,15,12],
-          "text-optional":true,"text-variable-anchor":["top","bottom","left","right"],"text-radial-offset":0.55},
-        filter:["case",["<",["zoom"],12],[">=",["get","rank"],3],
-                       ["<",["zoom"],13],[">=",["get","rank"],2],true],
+          "text-optional":true,"text-variable-anchor":["top","bottom","left","right"],"text-radial-offset":0.55,
+          // 撞车时按乗降客数让位：数字越小越先放置，所以取负的客流。
+          // 不写这一条的话谁被挤掉全看要素在瓦片里的顺序——实测 z12 的大阪一屏
+          // 43 个駅名里没有難波（54 万人次/日），却有几百人的小站。
+          "symbol-sort-key":["-",0,["coalesce",["get","pax"],0]]},
+        // lab=1 是每个駅的代表站台。不加这一条的话，難波会写出四遍
+        filter:["all",["==",["get","lab"],1],
+                ["case",["<",["zoom"],12],[">=",["get","rank"],3],
+                        ["<",["zoom"],13],[">=",["get","rank"],2],true]],
         paint:{"text-color":"#26343F","text-halo-color":"#fff","text-halo-width":1.4}},
       // 東亜交通的标注。国际空港 z5 起，国内空港要到 z9；港口和口岸 z9 起。
       // 名字优先取 OSM 的 name:zh，没有中文才退英文/本地名（见 pipeline/ea_transit_ex.py）。
