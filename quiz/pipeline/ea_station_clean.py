@@ -33,7 +33,11 @@ def rd(p):
 # 用顶点近似足够，省掉逐段求距离。
 grid = collections.defaultdict(list)
 nv = 0
-for f in rd(D + "/ea_rail.geojsonl"):
+for src in ("/ea_rail.geojsonl", "/ea_rail_con.geojsonl", "/ea_rail_tram.geojsonl"):
+  import os
+  if not os.path.exists(D + src):
+    continue
+  for f in rd(D + src):
     g = f["geometry"]
     lines = ([g["coordinates"]] if g["type"] == "LineString"
              else g["coordinates"] if g["type"] == "MultiLineString" else [])
@@ -46,7 +50,13 @@ print("轨道顶点 %d 个，网格 %d 格" % (nv, len(grid)), flush=True)
 keep = []
 drop = 0
 ex = []
+RAILKIND = ("rail", "sub", "lrt", "con")
 for f in rd(D + "/ea_station.geojsonl"):
+    # 这条规则只管**轨道类**的站。长途汽车站和索道站本来就不在铁轨旁边，
+    # 用户要求保留它们（「长途汽车站可以保留啊，这个是细节补充」）。
+    if f["properties"].get("k") not in RAILKIND:
+        keep.append(f)
+        continue
     x, y = f["geometry"]["coordinates"]
     gx, gy = int(x / CELL), int(y / CELL)
     ok = False

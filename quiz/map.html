@@ -144,7 +144,7 @@ maplibregl.addProtocol("pmtiles",proto.tile);
 // 新文件同名同 URL，目录偏移全对不上，取回来的就是垃圾——表现为
 // 「标注还在、边界整片消失」，而且不报错。GitHub Pages 的 max-age 是 600s，
 // 手机上实测能吃到更久。加个查询串就当成新资源，一次性根治。
-const V="?v=20260810q";
+const V="?v=20260810r";
 const prefColor=["match",["get","reg"]]; REGIONS.forEach((_,i)=>prefColor.push(i,RC[i])); prefColor.push("#CCC");
 
 const map=new maplibregl.Map({
@@ -409,6 +409,11 @@ const map=new maplibregl.Map({
         paint:{"line-color":"#8D6E63","line-width":["interpolate",["linear"],["zoom"],8,.5,12,1.6]}},
       {id:"etr-rail-sub",source:"etr","source-layer":"railsub",type:"line",minzoom:8,layout:{visibility:"none"},
         paint:{"line-color":"#C2410C","line-width":["interpolate",["linear"],["zoom"],8,.8,13,2.4]}},
+      // 在建铁路。用户：「在建铁路可以画啊，标注出来就行」。
+      // 画成虚线、颜色比在营的浅一档，一眼分得出还没通车。
+      {id:"etr-rail-con",source:"etr","source-layer":"railcon",type:"line",minzoom:6,layout:{visibility:"none"},
+        paint:{"line-color":"#7FA37F","line-width":["interpolate",["linear"],["zoom"],6,.5,12,2.0],
+               "line-dasharray":[3,2]}},
       {id:"etr-rail",source:"etr","source-layer":"rail",type:"line",minzoom:5,layout:{visibility:"none"},
         paint:{"line-color":"#2E7D32","line-width":["interpolate",["linear"],["zoom"],4,.45,12,2.1]}},
       {id:"etr-rail-hs",source:"etr","source-layer":"railhs",type:"line",minzoom:3,layout:{visibility:"none"},
@@ -444,10 +449,20 @@ const map=new maplibregl.Map({
                "circle-color":"#B4451F","circle-stroke-color":"#fff","circle-stroke-width":1}},
       // 车站。OSM 里全区 62,554 个（其中 56,579 个有名字，90%）。
       // 日本不在这一层里——日本用 N02 那份（有事業者、有乗降客数），比 OSM 准。
+      // 車站六类：rail 火车站 / sub 地铁站 / lrt 軌道・モノレール
+      //           con 在建站 / bus 长途汽车站 / aerial 索道站
+      // 用户：「长途汽车站可以保留啊，这个是细节补充，我只是希望能有标签名字而已」。
+      // 汽车站数量大（全区两万多），z11 才出，免得低缩放把火车站淹掉。
       {id:"etr-station",source:"etr","source-layer":"station",type:"circle",minzoom:9,layout:{visibility:"none"},
-        paint:{"circle-radius":["interpolate",["linear"],["zoom"],9,1.8,15,4.2],
+        filter:["case",["<",["zoom"],11],
+                 ["match",["get","k"],["bus","aerial","con"],false,true],true],
+        paint:{"circle-radius":["interpolate",["linear"],["zoom"],9,
+                 ["match",["get","k"],["bus","aerial"],1.4,1.8],15,
+                 ["match",["get","k"],["bus","aerial"],3.2,4.2]],
                "circle-color":"#fff",
-               "circle-stroke-color":["match",["get","k"],"sub","#C2410C","lrt","#8D6E63","#37474F"],
+               "circle-stroke-color":["match",["get","k"],
+                 "sub","#C2410C","lrt","#8D6E63","con","#7FA37F",
+                 "bus","#5A7184","aerial","#7E6BA8","#37474F"],
                "circle-stroke-width":["interpolate",["linear"],["zoom"],9,1,15,1.5]}},
       // 交通标注排在行政标注前面：避让时先给駅名/空港名占位
       // ── 标注 ──
@@ -579,10 +594,18 @@ const map=new maplibregl.Map({
           "text-halo-color":"#fff","text-halo-width":1.5}},
       {id:"etr-station-lab",source:"etr","source-layer":"station",type:"symbol",minzoom:11,
         layout:{visibility:"none","text-field":["get","n"],"text-font":["NotoSansJP Regular"],
-          "text-size":["interpolate",["linear"],["zoom"],11,9.5,15,12],"text-optional":true,
-          "text-variable-anchor":["top","bottom","left","right"],"text-radial-offset":0.55},
-        filter:["!=",["get","n"],""],
-        paint:{"text-color":"#26343F","text-halo-color":"#fff","text-halo-width":1.4}},
+          "text-size":["interpolate",["linear"],["zoom"],11,
+            ["match",["get","k"],["bus","aerial"],8.5,9.5],15,
+            ["match",["get","k"],["bus","aerial"],10.5,12]],"text-optional":true,
+          "text-variable-anchor":["top","bottom","left","right"],"text-radial-offset":0.55,
+          // 撞车时火车站优先：轨道类排 0，汽车站/索道站排 1（数字大的后放）
+          "symbol-sort-key":["match",["get","k"],["bus","aerial"],1,0]},
+        // 汽车站/索道站的名字 z12 才出——它们数量大，z11 就写会把火车站名挤掉
+        filter:["all",["!=",["get","n"],""],
+                ["case",["<",["zoom"],12],
+                  ["match",["get","k"],["bus","aerial"],false,true],true]],
+        paint:{"text-color":["match",["get","k"],["bus","aerial"],"#4A5A68","#26343F"],
+          "text-halo-color":"#fff","text-halo-width":1.4}},
       {id:"etr-port-lab",source:"etr","source-layer":"port",type:"symbol",minzoom:9,
         layout:{visibility:"none","text-field":["get","n"],"text-font":["NotoSansJP Regular"],
           "text-size":10,"text-optional":true,
@@ -712,14 +735,15 @@ const TR=["tr-ferry","tr-stationseg","tr-rail-other","tr-rail-s3","tr-rail-priv"
 // 別国那 21 份 OSM 提取包里没有駅，只画日本的駅会显得日本特别热闹，反而失衡。
 const TRJP=["tr-ferry","tr-rail-other","tr-rail-s3","tr-rail-priv","tr-rail-sub","tr-rail-jr",
             "tr-rail-shin","tr-air","tr-air-lab","tr-station","tr-station-lab"];
-const ETR=["etr-trunk","etr-motorway","etr-ferry","etr-rail-lrt","etr-rail-sub","etr-rail","etr-rail-hs",
+const ETR=["etr-trunk","etr-motorway","etr-ferry","etr-rail-con","etr-rail-lrt","etr-rail-sub","etr-rail","etr-rail-hs",
            "etr-air","etr-airpt","etr-port","etr-bc","etr-station",
            "etr-air-lab","etr-station-lab","etr-port-lab","etr-bc-lab"];
 let transit=false;
 const TRLEG=[["#0B4F8A","新幹線"],["#2E7D32","JR在来線"],["#C2410C","地下鉄"],["#7B5EA7","民営鉄道"],
              ["#00838F","第三セクター"],["#8D6E63","軌道・モノレール・新交通"],["#5B4B8A","空港"],["#3E7CB1","定期旅客航路"]];
 const ETRLEG=[["#0B4F8A","高速鉄道"],["#2E7D32","鉄道"],["#C2410C","地下鉄"],["#8D6E63","軌道・モノレール"],
-              ["#37474F","駅"],["#5B4B8A","国際空港"],["#9A8FC0","国内・その他の空港"],
+              ["#7FA37F","建設中の鉄道"],["#37474F","駅"],["#5A7184","バスターミナル"],
+              ["#7E6BA8","索道駅"],["#5B4B8A","国際空港"],["#9A8FC0","国内・その他の空港"],
               ["#3E7CB1","フェリー航路"],["#1F6F8B","港湾"],["#B4451F","国境検問所"],
               ["#C46A28","高速道路"],["#D8A24A","一級道路"]];
 // 两个视图共用同一个「交通」按钮：現代日本用 N02 那套，東亜用 OSM 那套＋日本的 N02。

@@ -113,6 +113,43 @@ def glen(g):
     return s
 
 
+# 名字兜底：OSM 里同一个东西的名字可能挂在好几个键上。
+# 用户：「为什么有这么多元素连名字都没有」——实测中国这一份，
+# 机场 1,482 个里 172 个（11.6%）一个 name 标都没有，其中 74 个是军用；
+# 火车站 20,330 个里 633 个（3.1%）没有，标签组合是「建筑+车站」，
+# 典型的对着卫星图描形状、不知道名字就提交了。真没有的补不出来，
+# 但**挂在别的键上的**能捞回来：官方名、别名、外语名、机场的 IATA/ICAO 代码。
+NAME_KEYS = ("official_name", "alt_name", "int_name", "short_name",
+             "loc_name", "nat_name", "reg_name", "old_name")
+
+
+def best_name(p, t, code_keys=()):
+    zh = t.get("name:zh") or t.get("name:zh-Hans")
+    if zh:
+        return trim_mixed(zh)
+    loc = p.get("name") or t.get("name") or ""
+    if HAN_RE.search(loc):
+        return trim_mixed(loc)
+    for k in ("name:ja", "name:en"):
+        if t.get(k):
+            return t[k]
+    if loc:
+        return loc
+    # 任何一种语言的 name:xx
+    for k in sorted(t):
+        if k.startswith("name:") and t[k]:
+            return trim_mixed(t[k])
+    for k in NAME_KEYS:
+        for kk in (k, k + ":zh", k + ":en"):
+            if t.get(kk):
+                return trim_mixed(t[kk])
+    # 机场退到 IATA/ICAO 代码——总比一块没名字的色块强
+    for k in code_keys:
+        if t.get(k):
+            return t[k].strip()
+    return ""
+
+
 def cent(g):
     """代表点：线取中点顶点，面取顶点平均。够用了，不值得为它引 shapely。"""
     ty = g["type"]
@@ -214,7 +251,7 @@ for pb in pbfs:
         # ── 轮渡 ──
         if t.get("route") == "ferry" and "Line" in g["type"]:
             o_fer.write(json.dumps({"type": "Feature",
-                                    "properties": {"n": nm(p, t), "L": round(glen(g), 1)},
+                                    "properties": {"n": best_name(p, t), "L": round(glen(g), 1)},
                                     "geometry": g}, ensure_ascii=False) + "\n")
             cnt["ferry"] += 1
             continue
@@ -223,7 +260,7 @@ for pb in pbfs:
         if t.get("aeroway") == "aerodrome":
             at = (t.get("aerodrome:type") or t.get("aerodrome") or "").lower()
             iata = (t.get("iata") or "").strip()
-            name = nm(p, t)
+            name = best_name(p, t, ("iata", "icao"))
             # aerodrome:type 这个标在东亚很不可靠——北京首都国际机场标的是 public，
             # 中印两国加起来只有 100 个标了 international。所以再看名字：
             # 各国的机场名里「国际」二字几乎不会漏（这是官方定名的一部分）。
@@ -248,7 +285,7 @@ for pb in pbfs:
                 or t.get("seamark:type") == "harbour"
                 or t.get("amenity") == "ferry_terminal"):
             k = "ft" if t.get("amenity") == "ferry_terminal" else "port"
-            name = nm(p, t)
+            name = best_name(p, t, ("iata", "icao"))
             key = "%.3f,%.3f" % (pt[0], pt[1])
             if key not in ports or (name and not ports[key][0]):
                 ports[key] = (name, k, pt)
@@ -257,7 +294,7 @@ for pb in pbfs:
         # ── 口岸 ──
         if t.get("barrier") == "border_control":
             key = "%.3f,%.3f" % (pt[0], pt[1])
-            bcs.setdefault(key, (nm(p, t), pt))
+            bcs.setdefault(key, (best_name(p, t), pt))
             continue
     print("  %-28s +%d" % (country, sum(cnt.values()) - c0), flush=True)
 

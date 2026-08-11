@@ -28,6 +28,7 @@ import json, re, sys, os, glob, math, collections, subprocess
 
 D = "/home/user/osm"
 EA = D + "/eatr2"
+EA3 = D + "/eatr3"      # 第三遍：在建铁路、独立的长途汽车站、有轨电车
 W, S_, E, N = 68.0, -12.0, 154.0, 56.0
 
 
@@ -89,6 +90,43 @@ def name_of(p, t):
     return t.get("name:ja") or t.get("name:en") or loc
 
 
+# 名字兜底：OSM 里同一个东西的名字可能挂在好几个键上。
+# 用户：「为什么有这么多元素连名字都没有」——实测中国这一份，
+# 机场 1,482 个里 172 个（11.6%）一个 name 标都没有，其中 74 个是军用；
+# 火车站 20,330 个里 633 个（3.1%）没有，标签组合是「建筑+车站」，
+# 典型的对着卫星图描形状、不知道名字就提交了。真没有的补不出来，
+# 但**挂在别的键上的**能捞回来：官方名、别名、外语名、机场的 IATA/ICAO 代码。
+NAME_KEYS = ("official_name", "alt_name", "int_name", "short_name",
+             "loc_name", "nat_name", "reg_name", "old_name")
+
+
+def best_name(p, t, code_keys=()):
+    zh = t.get("name:zh") or t.get("name:zh-Hans")
+    if zh:
+        return trim_mixed(zh)
+    loc = p.get("name") or t.get("name") or ""
+    if HAN_RE.search(loc):
+        return trim_mixed(loc)
+    for k in ("name:ja", "name:en"):
+        if t.get(k):
+            return t[k]
+    if loc:
+        return loc
+    # 任何一种语言的 name:xx
+    for k in sorted(t):
+        if k.startswith("name:") and t[k]:
+            return trim_mixed(t[k])
+    for k in NAME_KEYS:
+        for kk in (k, k + ":zh", k + ":en"):
+            if t.get(kk):
+                return trim_mixed(t[kk])
+    # 机场退到 IATA/ICAO 代码——总比一块没名字的色块强
+    for k in code_keys:
+        if t.get(k):
+            return t[k].strip()
+    return ""
+
+
 def cent(g):
     ty = g["type"]
     c = g["coordinates"]
@@ -111,10 +149,12 @@ def cent(g):
 o_st = open(D + "/ea_station.geojsonl", "w")
 o_mw = open(D + "/ea_motorway.geojsonl", "w")
 o_tk = open(D + "/ea_trunk.geojsonl", "w")
+o_con = open(D + "/ea_rail_con.geojsonl", "w")
+o_tram = open(D + "/ea_rail_tram.geojsonl", "w")
 cnt = collections.Counter()
 sta = {}
 
-pbfs = sorted(glob.glob(EA + "/*.pbf"))
+pbfs = sorted(glob.glob(EA + "/*.pbf")) + sorted(glob.glob(EA3 + "/*.pbf"))
 if not pbfs:
     sys.exit("没有 eatr2/*.pbf，先跑 ea_transit_dl2.sh")
 TMP = EA + "/_x.geojsonl"
@@ -145,41 +185,72 @@ for pb in pbfs:
             cnt["road_" + hw] += 1
             continue
 
-        # `public_transport=station` **不能单独当火车站用**——OSM 里长途汽车站
-        # （amenity=bus_station）、索道站（aerialway=station）也打这个标。
-        # 乌鲁木齐实测：图上「毛纺厂」「头工站」「公交公司经营一部」全是公交场站，
-        # 还有一堆连名字都没有的，用户问「这是什么地方，什么都不显示」。
-        # 规则：要么明确是 railway=station/halt，要么 public_transport=station
-        # 且带着轨道类的标（train/subway/light_rail/monorail/railway）。
+        # 在建铁路 / 有轨电车 / 缆索铁路（第三遍才下到的）
         rw = t.get("railway")
-        railish = (rw in ("station", "halt") or
-                   (t.get("public_transport") == "station" and
-                    (rw or t.get("train") == "yes" or t.get("subway") == "yes"
-                     or t.get("light_rail") == "yes" or t.get("monorail") == "yes")))
-        if t.get("amenity") == "bus_station" or t.get("aerialway") or t.get("highway"):
-            railish = False
-        if railish:
-            if (t.get("disused") or t.get("abandoned") or t.get("construction")
-                    or t.get("construction:railway") or (t.get("station") or "") == "construction"
-                    or "在建" in (p.get("name") or "") or "建設中" in (p.get("name") or "")):
+        if rw in ("construction", "tram", "funicular") and "Line" in g["type"]:
+            if t.get("disused") or t.get("abandoned"):
                 continue
-            st = (t.get("station") or "").lower()
-            if st == "subway" or t.get("subway") == "yes":
-                k = "sub"
-            elif st in ("light_rail", "monorail") or t.get("light_rail") == "yes" \
-                    or t.get("monorail") == "yes":
-                k = "lrt"
+            if rw == "construction":
+                # 在建的是不是铁路？construction=rail/subway/... 说了算；没写就当铁路
+                c = (t.get("construction") or "rail")
+                if c not in ("rail", "subway", "light_rail", "monorail",
+                             "narrow_gauge", "tram", "yes"):
+                    continue
+                o_con.write(json.dumps({"type": "Feature", "properties": {},
+                                        "geometry": g}, ensure_ascii=False) + "\n")
+                cnt["rail_construction"] += 1
             else:
-                k = "rail"
-            nm = name_of(p, t)
-            # 同一个站常常又有点又有面（还可能站房、站台各一个），
-            # 按 250m 网格 + 同名去重；无名的按网格去重
-            key = (nm, round(pt[0] * 400), round(pt[1] * 400))
-            if key not in sta:
-                sta[key] = (nm, k, pt)
-            elif sta[key][1] == "rail" and k != "rail":
-                sta[key] = (nm, k, pt)
+                o_tram.write(json.dumps({"type": "Feature", "properties": {},
+                                         "geometry": g}, ensure_ascii=False) + "\n")
+                cnt["rail_" + rw] += 1
             continue
+
+        # 車站分六类。用户：「长途汽车站可以保留啊，这个是细节补充，
+        # 我只是希望能有标签名字而已」「在建铁路可以画啊，标注出来就行」。
+        #   rail/sub/lrt  在营的火车站/地铁站/轻轨站
+        #   con           在建的车站（跟在建线路一起画成虚线色）
+        #   bus           长途汽车站（amenity=bus_station）
+        #   aerial        索道站（aerialway=station）
+        # `public_transport=station` 单独不算火车站——汽车站、索道站也打这个标，
+        # 所以要么明确 railway=station/halt，要么它同时带着轨道类的标。
+        amen = t.get("amenity")
+        aer = t.get("aerialway")
+        rwn = t.get("railway")
+        nm = best_name(p, t)
+        dead = t.get("disused") or t.get("abandoned")
+        constr = bool(t.get("construction") or t.get("construction:railway")
+                      or (t.get("station") or "") == "construction"
+                      or "在建" in nm or "建設中" in nm)
+        railish = (rwn in ("station", "halt") or
+                   (t.get("public_transport") == "station" and
+                    (rwn or t.get("train") == "yes" or t.get("subway") == "yes"
+                     or t.get("light_rail") == "yes" or t.get("monorail") == "yes")))
+        if amen == "bus_station":
+            k = "bus"
+        elif aer == "station":
+            k = "aerial"
+        elif railish and not dead and not t.get("highway"):
+            if constr:
+                k = "con"
+            else:
+                st = (t.get("station") or "").lower()
+                if st == "subway" or t.get("subway") == "yes":
+                    k = "sub"
+                elif st in ("light_rail", "monorail", "tram") or \
+                        t.get("light_rail") == "yes" or t.get("monorail") == "yes":
+                    k = "lrt"
+                else:
+                    k = "rail"
+        else:
+            continue
+        # 同一个站常常又有点又有面（站房、站台各一个），先按 250m 网格 + 同名去重
+        key = (nm, k if k in ("bus", "aerial") else "r",
+               round(pt[0] * 400), round(pt[1] * 400))
+        if key not in sta:
+            sta[key] = (nm, k, pt)
+        elif sta[key][1] == "rail" and k not in ("rail", "con"):
+            sta[key] = (nm, k, pt)
+        continue
     print("  %-28s +%d" % (country, sum(cnt.values()) - c0), flush=True)
 
 # 同名 600m 以内合成一个：OSM 里一个站常常站房一个点、站台一个面、
@@ -208,6 +279,11 @@ for i, (n_, k_, pt_) in enumerate(_items):
             for j in _grid.get((gx + dx, gy + dy), ()):
                 if j <= i or _items[j][0] != n_:
                     continue
+                # 汽车站和火车站可能同名同址（「XX站」），但不是一个东西，不能合
+                bus_i = k_ in ("bus", "aerial")
+                bus_j = _items[j][1] in ("bus", "aerial")
+                if bus_i != bus_j:
+                    continue
                 q = _items[j][2]
                 if math.hypot((q[0] - pt_[0]) * 85, (q[1] - pt_[1]) * 111) > 0.6:
                     continue
@@ -222,7 +298,18 @@ merged = []
 for idx in _cl.values():
     n_ = _items[idx[0]][0]
     ks = [_items[i][1] for i in idx]
-    k_ = ("sub" if "sub" in ks else "lrt" if "lrt" in ks else "rail")
+    if "bus" in ks:
+        k_ = "bus"
+    elif "aerial" in ks:
+        k_ = "aerial"
+    elif "sub" in ks:
+        k_ = "sub"
+    elif "lrt" in ks:
+        k_ = "lrt"
+    elif "rail" in ks:
+        k_ = "rail"
+    else:
+        k_ = "con"
     x = sum(_items[i][2][0] for i in idx) / len(idx)
     y = sum(_items[i][2][1] for i in idx) / len(idx)
     merged.append((n_, k_, [x, y]))
@@ -234,7 +321,7 @@ for nm, k, pt in merged:
                                         "coordinates": [round(pt[0], 5), round(pt[1], 5)]}},
                           ensure_ascii=False) + "\n")
     cnt["station_" + k] += 1
-for f in (o_st, o_mw, o_tk):
+for f in (o_st, o_mw, o_tk, o_con, o_tram):
     f.close()
 if os.path.exists(TMP):
     os.remove(TMP)

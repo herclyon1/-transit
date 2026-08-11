@@ -28,6 +28,9 @@ for f in o.values():
 print("铁路分层:", n)
 PY
 
+# 有轨电车并进「軌道・モノレール」那一层——图例里本来就是一类
+cat ea_rail_tram.geojsonl >> ea_rail_lrt.geojsonl 2>/dev/null || true
+
 tippecanoe -o eatr.pmtiles -f -Z2 -z11 \
   --simplify-only-low-zooms --coalesce \
   --drop-densest-as-needed --extend-zooms-if-still-dropping -q \
@@ -35,6 +38,7 @@ tippecanoe -o eatr.pmtiles -f -Z2 -z11 \
   -L'{"file":"ea_rail_rail.geojsonl","layer":"rail","minzoom":5}' \
   -L'{"file":"ea_rail_sub.geojsonl","layer":"railsub","minzoom":8}' \
   -L'{"file":"ea_rail_lrt.geojsonl","layer":"raillrt","minzoom":8}' \
+  -L'{"file":"ea_rail_con.geojsonl","layer":"railcon","minzoom":6}' \
   -L'{"file":"ea_ferry.geojsonl","layer":"ferry","minzoom":3}' \
   -L'{"file":"ea_air.geojsonl","layer":"air","minzoom":7}' \
   -L'{"file":"ea_airpt.geojsonl","layer":"airpt","minzoom":3}' \
