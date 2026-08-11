@@ -9,7 +9,7 @@ set -eu
 D=/home/user/osm
 cd $D
 
-tippecanoe -o ea_units.pmtiles -f -Z0 -z12 \
+tippecanoe -o ea_units.pmtiles -f -Z0 -z12 -r1 \
   --simplify-only-low-zooms \
   --no-simplification-of-shared-nodes \
   --detect-shared-borders \

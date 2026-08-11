@@ -144,7 +144,7 @@ maplibregl.addProtocol("pmtiles",proto.tile);
 // 新文件同名同 URL，目录偏移全对不上，取回来的就是垃圾——表现为
 // 「标注还在、边界整片消失」，而且不报错。GitHub Pages 的 max-age 是 600s，
 // 手机上实测能吃到更久。加个查询串就当成新资源，一次性根治。
-const V="?v=20260810r";
+const V="?v=20260810u";
 const prefColor=["match",["get","reg"]]; REGIONS.forEach((_,i)=>prefColor.push(i,RC[i])); prefColor.push("#CCC");
 
 const map=new maplibregl.Map({
@@ -182,6 +182,12 @@ const map=new maplibregl.Map({
       // 高速/一級公路单独一个文件：并进 eatr.pmtiles 的话是 101.3MB，
       // 正好压在 GitHub 单文件 100MB 上限上，拆开之后 31MB + 71MB。
       erd:{type:"vector",url:"pmtiles://eatr_road.pmtiles"+V,maxzoom:11},
+      // 一级行政区名在 z7 以上改成**按视口动态生成**（见 updateDynLabels）：
+      // 瓦片里每个单元只有一个标注点、钉在首府上，一放大首府出了屏幕就一个名字都没有。
+      // 试过在单元内部撒网格点，撒密了同一个省名一屏写四五遍，撒疏了照样有空屏，
+      // 因为一屏的经度跨度每放大一级就减半，一种间距只能管两三级。
+      // 动态生成没有这个矛盾：屏幕上有几个省就写几个名字，各写一次。
+      dyn:{type:"geojson",data:{type:"FeatureCollection",features:[]}},
       lak:{type:"vector",url:"pmtiles://ea_lakes.pmtiles"+V},
       riv:{type:"vector",url:"pmtiles://ea_rivers.pmtiles"+V}},
     layers:[
@@ -647,11 +653,28 @@ const map=new maplibregl.Map({
           "text-variable-anchor":["top","right","left","bottom","top-left","top-right","bottom-left","bottom-right"],
           "text-justify":"auto","text-radial-offset":0.45,"text-optional":true},
         paint:{"text-color":"#5D6874","text-halo-color":"#fff","text-halo-width":1.3}},
-      {id:"ea-lab",source:"ea","source-layer":"unitlab",type:"symbol",layout:{visibility:"none",
+      // 一级行政区名。标注点有两种：
+      //   首府点（cap 有值）——一个单元一个，z8 以下只用它，缩小时最好看
+      //   网格点（g=1）——按 0.45° 撒在单元内部，**z8 以上才出**
+      // 只有首府点的话，一放大、首府又不在屏幕里，整屏就一个名字都没有
+      //（用户报的「现在放大啥都不显示了」）。实测 z10 抽 21 个地方，
+      // 有 6 个是「底面在、边界在、零标注」。
+      {id:"ea-lab",source:"ea","source-layer":"unitlab",type:"symbol",
+        maxzoom:7,
+        layout:{visibility:"none",
           "text-field":["get","n"],"text-font":["NotoSansJP Regular"],
           "text-size":["interpolate",["linear"],["zoom"],2,9,7,14],"text-padding":2,
           "text-variable-anchor":["bottom","top","bottom-left","bottom-right","top-left","top-right","left","right"],
           "text-justify":"auto","text-radial-offset":0.5,"text-optional":true},
+        paint:{"text-color":"#243040","text-halo-color":"#fff","text-halo-width":1.4}},
+      // z8 以上的一级行政区名：走网格点那一层。每个单元至少有一个网格点
+      //（小到撒不进网格的用代表点补），所以从 z8 切过去不会漏。
+      // z7–z11：粗网格（1.0°）。一屏的经度跨度约 582/2^z 度，每放大一级减半，
+      // 所以一种间距只能管两三级，得分两套。
+      {id:"ea-labd",source:"dyn",type:"symbol",minzoom:7,layout:{visibility:"none",
+          "text-field":["get","n"],"text-font":["NotoSansJP Regular"],
+          "text-size":13,"text-padding":2,"text-allow-overlap":false,
+          "text-variable-anchor":["bottom","top","left","right"],"text-radial-offset":0.5},
         paint:{"text-color":"#243040","text-halo-color":"#fff","text-halo-width":1.4}},
       {id:"ea-rus-lab",source:"jp","source-layer":"ruslab",type:"symbol",layout:{visibility:"none",
           "text-field":["get","n"],"text-font":["NotoSansJP Regular"],
@@ -673,7 +696,7 @@ const JP=["jp-cho-fillA","jp-choA","jp-cho-fillB","jp-choB","jp-cho-fillC","jp-c
   "jp-selcA","jp-selcB","jp-selcC","jp-selcD",
   "jp-lab-muni","jp-lab-ku","jp-lab-cho","jp-lab-disp"];
 const EA=["ea-fill","ea-cap","ea-caplab","ea-sub-fill","ea-sub","ea-sub-sel","ea-sublab","ea-rus","ea-rus-line","ea-rus-sel","ea-rus-lab",
-  "ea-line","ea-sel","ea-disp","ea-lab","ea-lab-disp"];
+  "ea-line","ea-sel","ea-disp","ea-lab","ea-labd","ea-lab-disp"];
 // 日本这几层**两个视图共用**，永远可见，只靠 setRegion 改 paint / filter。
 // 以前東亜另有一整套 ea-jp-*，样式各写各的，于是两个视图下的日本长得不一样。
 const JPBOTH=["jp-fill","jp-line","jp-sel","jp-disp-fill","jp-disp","jp-disp-sel",
@@ -694,7 +717,11 @@ function setRegion(r){
     :["interpolate",["linear"],["zoom"],2,.4,10,.9]);
   // z8 起市町村名接手：県名和県庁所在地名同时收掉，交接干净。
   // 留到 z9 的话 z8~9 这一段两层打架，谁被挤掉全看运气——滋賀県就是这么消失的。
-  map.setFilter("jp-lab",    r==="jp"?["<",["zoom"],8]:null);
+  // 両視図とも z8 で県名を収める。東亜側は z8 以上を ea-lab の网格点が引き継ぐ
+  // （首府だけに名前を置くと、拡大時に首府が画面外なら県名が一つも出ない）。
+  // 現代日本 z8 で市町村名にバトンタッチ。東亜側は z7 から動的ラベルが
+  // 県名を引き継ぐので、ここは z7 で収める（両方出すと z7〜8 で県名が二重になる）。
+  map.setFilter("jp-lab", ["<",["zoom"], r==="jp"?8:7]);
   map.setFilter("jp-caplab", r==="jp"?["all",["!=",["get","cap"],""],["<",["zoom"],8]]
                                      :["!=",["get","cap"],""]);
   // 首府圆点两个视图都一直留着——放大之后光看市名分不出哪个是県庁所在地。
@@ -710,8 +737,42 @@ function setRegion(r){
   document.getElementById("hint").style.display="";
   applyTransit();
   drawLegend();
+  updateDynLabels();
   map.flyTo(r==="jp"?{center:[137.5,37.5],zoom:4.3}:{center:[112,20],zoom:2.6},{duration:700});
 }
+// 一级行政区名（z7 以上）：按视口动态生成，屏幕上有几个省就写几个名字，各写一次。
+// 做法：在屏幕上撒 5×9 个采样点，逐点问「这里是哪个单元」，
+// 同一个单元的采样点归成一堆，取离堆中心最近的那个点当标注位置
+// （取平均值可能落到该省之外，取最近的采样点必定在省内）。
+// 采样只查已经画出来的图层，不额外读数据，一次 45 次命中测试，手机上无感。
+function updateDynLabels(){
+  const src = map.getSource("dyn");
+  if(!src) return;
+  if(region!=="ea" || map.getZoom()<7){ src.setData({type:"FeatureCollection",features:[]}); return; }
+  const cv = map.getCanvas(), w = cv.clientWidth, h = cv.clientHeight;
+  const NX=5, NY=9, acc={};
+  const layers = ["ea-fill","jp-fill"].filter(l=>map.getLayer(l));
+  for(let i=0;i<NX;i++) for(let j=0;j<NY;j++){
+    const q=[(i+0.5)*w/NX,(j+0.5)*h/NY];
+    let f=null;
+    try{ f = map.queryRenderedFeatures(q,{layers})[0]; }catch(e){}
+    const n = f && f.properties && f.properties.n;
+    if(!n) continue;
+    (acc[n]=acc[n]||[]).push(q);
+  }
+  const features = Object.keys(acc).map(n=>{
+    const ps=acc[n];
+    const cx=ps.reduce((a,b)=>a+b[0],0)/ps.length, cy=ps.reduce((a,b)=>a+b[1],0)/ps.length;
+    let best=ps[0], bd=Infinity;
+    for(const q of ps){ const d=(q[0]-cx)*(q[0]-cx)+(q[1]-cy)*(q[1]-cy); if(d<bd){bd=d;best=q;} }
+    const ll=map.unproject(best);
+    return {type:"Feature",properties:{n},geometry:{type:"Point",coordinates:[ll.lng,ll.lat]}};
+  });
+  src.setData({type:"FeatureCollection",features});
+}
+map.on("moveend", updateDynLabels);
+map.on("idle", updateDynLabels);
+
 // 底图切换。开着底图时把行政区填色降到半透明，否则底图完全看不见。
 let base="none";
 function setBase(b){
