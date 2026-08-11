@@ -60,13 +60,32 @@ def rd(p):
 HAN_RE = re.compile(r"[\u3400-\u4DBF\u4E00-\u9FFF]")
 
 
+# OSM 里中国西部/内蒙/西藏的 name 经常是**双语连写**，比如
+#   「乌鲁木齐天山国际机场 ئۇرۇمچى تيەنشەن خەلقئارا ئايرودرومى」
+# 直接拿来当标注，屏幕上就是一长条中文+维文。既然汉字那一段在，就只留汉字那一段。
+OTHER_SCRIPT = re.compile(
+    r"[\u0400-\u04FF\u0600-\u06FF\u0900-\u097F\u0980-\u09FF"
+    r"\u0D80-\u0DFF\u0E00-\u0E7F\u1000-\u109F\u1780-\u17FF"
+    r"\u0F00-\u0FFF\u1800-\u18AF\uAC00-\uD7AF]")
+
+
+def trim_mixed(v):
+    """名字里汉字和别的文字连写时，只留汉字开头的那一段。"""
+    if not v or not HAN_RE.search(v):
+        return v
+    m = OTHER_SCRIPT.search(v)
+    if not m:
+        return v
+    return v[:m.start()].strip(" -–—/|·、,，") or v
+
+
 def name_of(p, t):
     zh = t.get("name:zh") or t.get("name:zh-Hans")
     if zh:
-        return zh
+        return trim_mixed(zh)
     loc = p.get("name") or ""
     if HAN_RE.search(loc):
-        return loc
+        return trim_mixed(loc)
     return t.get("name:ja") or t.get("name:en") or loc
 
 
@@ -126,8 +145,20 @@ for pb in pbfs:
             cnt["road_" + hw] += 1
             continue
 
+        # `public_transport=station` **不能单独当火车站用**——OSM 里长途汽车站
+        # （amenity=bus_station）、索道站（aerialway=station）也打这个标。
+        # 乌鲁木齐实测：图上「毛纺厂」「头工站」「公交公司经营一部」全是公交场站，
+        # 还有一堆连名字都没有的，用户问「这是什么地方，什么都不显示」。
+        # 规则：要么明确是 railway=station/halt，要么 public_transport=station
+        # 且带着轨道类的标（train/subway/light_rail/monorail/railway）。
         rw = t.get("railway")
-        if rw in ("station", "halt") or t.get("public_transport") == "station":
+        railish = (rw in ("station", "halt") or
+                   (t.get("public_transport") == "station" and
+                    (rw or t.get("train") == "yes" or t.get("subway") == "yes"
+                     or t.get("light_rail") == "yes" or t.get("monorail") == "yes")))
+        if t.get("amenity") == "bus_station" or t.get("aerialway") or t.get("highway"):
+            railish = False
+        if railish:
             if (t.get("disused") or t.get("abandoned") or t.get("construction")
                     or t.get("construction:railway") or (t.get("station") or "") == "construction"
                     or "在建" in (p.get("name") or "") or "建設中" in (p.get("name") or "")):

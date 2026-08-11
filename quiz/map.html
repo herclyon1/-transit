@@ -144,7 +144,7 @@ maplibregl.addProtocol("pmtiles",proto.tile);
 // 新文件同名同 URL，目录偏移全对不上，取回来的就是垃圾——表现为
 // 「标注还在、边界整片消失」，而且不报错。GitHub Pages 的 max-age 是 600s，
 // 手机上实测能吃到更久。加个查询串就当成新资源，一次性根治。
-const V="?v=20260810m";
+const V="?v=20260810q";
 const prefColor=["match",["get","reg"]]; REGIONS.forEach((_,i)=>prefColor.push(i,RC[i])); prefColor.push("#CCC");
 
 const map=new maplibregl.Map({
@@ -413,8 +413,13 @@ const map=new maplibregl.Map({
         paint:{"line-color":"#2E7D32","line-width":["interpolate",["linear"],["zoom"],4,.45,12,2.1]}},
       {id:"etr-rail-hs",source:"etr","source-layer":"railhs",type:"line",minzoom:3,layout:{visibility:"none"},
         paint:{"line-color":"#0B4F8A","line-width":["interpolate",["linear"],["zoom"],3,.8,12,3.4]}},
+      // 空港的面按国际/国内/军用分色，跟圆点一致。
+      // OSM 里有 307 个 aerodrome 连一个 name 标都没有（只有 aeroway=aerodrome），
+      // 那种放大之后就是一块没名字的色块；至少让颜色能对上图例，
+      // 用户不至于「不知道这是什么地方」。
       {id:"etr-air",source:"etr","source-layer":"air",type:"fill",minzoom:8,layout:{visibility:"none"},
-        paint:{"fill-color":"#5B4B8A","fill-opacity":.75}},
+        paint:{"fill-color":["match",["get","k"],"intl","#5B4B8A","mil","#7A6A55","#9A8FC0"],
+               "fill-opacity":.75}},
       // 空港的点：国际的早出（z4），国内/通用的 z8 才出，军民合用的 z9。
       // 用户要的「非国际的就特别标注一下，都画上去」——4,384 个国内场都在里面，
       // 只是低缩放不挤出来。国际的圈大一圈、描白边，一眼分得出。

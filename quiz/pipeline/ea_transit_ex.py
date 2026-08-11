@@ -70,13 +70,32 @@ def rd(p):
 HAN_RE = re.compile(r"[\u3400-\u4DBF\u4E00-\u9FFF]")
 
 
+# OSM 里中国西部/内蒙/西藏的 name 经常是**双语连写**，比如
+#   「乌鲁木齐天山国际机场 ئۇرۇمچى تيەنشەن خەلقئارا ئايرودرومى」
+# 直接拿来当标注，屏幕上就是一长条中文+维文。既然汉字那一段在，就只留汉字那一段。
+OTHER_SCRIPT = re.compile(
+    r"[\u0400-\u04FF\u0600-\u06FF\u0900-\u097F\u0980-\u09FF"
+    r"\u0D80-\u0DFF\u0E00-\u0E7F\u1000-\u109F\u1780-\u17FF"
+    r"\u0F00-\u0FFF\u1800-\u18AF\uAC00-\uD7AF]")
+
+
+def trim_mixed(v):
+    """名字里汉字和别的文字连写时，只留汉字开头的那一段。"""
+    if not v or not HAN_RE.search(v):
+        return v
+    m = OTHER_SCRIPT.search(v)
+    if not m:
+        return v
+    return v[:m.start()].strip(" -–—/|·、,，") or v
+
+
 def nm(p, t):
     zh = t.get("name:zh") or t.get("name:zh-Hans")
     if zh:
-        return zh
+        return trim_mixed(zh)
     loc = p.get("name") or ""
     if HAN_RE.search(loc):
-        return loc
+        return trim_mixed(loc)
     return t.get("name:ja") or t.get("name:en") or loc
 
 
